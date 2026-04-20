@@ -3,6 +3,7 @@
 /embryo_result/
 /merfish_mouse_result/
 /Mouse_Brain_multiomics_result/
+/Human_lymph_node_result/
 
 # OS / editor / local state
 .DS_Store
