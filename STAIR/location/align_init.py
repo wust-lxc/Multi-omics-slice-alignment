@@ -60,8 +60,22 @@ def align_init_pair(adata1,
     A = adata2[pair[:,1],:].obsm[spatial_key2]
     
     if use_scale:
-        scales_ = np.array([np.sqrt(((B[i] - B[j])**2).sum()) / np.sqrt(((A[i] - A[j])**2).sum()) for i in range(B.shape[0]) for j in range(B.shape[0]) if i!=j])
-        scale_use = np.median(scales_)
+        from scipy.spatial.distance import pdist
+
+        print(f"  Calculating exact scale factor using full {B.shape[0]} points (Vectorized)...")
+        
+        # scipy.spatial.distance.pdist 会在底层 C 语言级别极速计算所有的两两距离
+        # 时间复杂度依旧是 O(N^2)，但由于完全向量化，对于 10000 级别的数据只需 1-2 秒
+        dist_B = pdist(B)
+        dist_A = pdist(A)
+        
+        # 避免分母为 0 导致计算出现 NaN (非数)
+        valid = dist_A > 1e-8
+        
+        # 计算全量数据的精确中位数缩放比例
+        scale_use = np.median(dist_B[valid] / dist_A[valid])
+        
+        # 应用缩放
         A = A * scale_use
     else:
         scale_use=None

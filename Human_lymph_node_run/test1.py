@@ -7,7 +7,9 @@ def main():
     file_path = "Human_lymph_node_result/human_lymph_node_processed.h5ad"
     print(f"正在加载数据: {file_path} ...")
     adata = sc.read_h5ad(file_path)
-    
+    # 【新增】：合并物理交织的髓质亚区，消除不合理的 ARI 惩罚
+    if "final_annot" in adata.obs.columns:
+        adata.obs["final_annot"] = adata.obs["final_annot"].astype(str).str.replace("medulla cords", "medulla").str.replace("medulla sinuses", "medulla")
     # 过滤掉那些可能没有被注释到的无效细胞（严谨起见）
     valid_mask = ~adata.obs['final_annot'].isna() & ~adata.obs['Domain'].isna()
     

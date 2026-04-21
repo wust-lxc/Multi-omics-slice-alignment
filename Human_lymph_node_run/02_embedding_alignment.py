@@ -62,17 +62,17 @@ def main():
     ae_epoch = 200
     ae_batch_size = 256
     loss_weight_rna = 1.0
-    loss_weight_atac = 5.0
+    loss_weight_atac = 10.0
     atac_loss = "mse"
 
     hgat_epoch = 200
     hgat_batches = 6
-    sim_threshold = 0.15
-    c_neigh_het = 0.15
+    sim_threshold = 0.3
+    c_neigh_het = 0.35
     n_neigh_hom = 10
     mini_batch = False
 
-    cluster_num = 14
+    cluster_num = 9
 
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     result_dir = os.path.join(root_dir, "Human_lymph_node_result")
@@ -87,7 +87,11 @@ def main():
 
     adata = sc.read_h5ad(merged_file)
     adata.obs_names_make_unique()
-
+    if "final_annot" in adata.obs.columns:
+        adata.obs["final_annot"] = (adata.obs["final_annot"]
+            .astype(str)
+            .str.lower()
+            .str.replace("vessels", "vessel"))
     batch_order = (
         adata.obs[["batch", "slice_order"]]
         .drop_duplicates()
