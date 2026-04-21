@@ -9,9 +9,6 @@ def main():
     
     print(f"正在加载数据: {file_path}")
     adata = sc.read_h5ad(file_path)
-    # 【新增】：合并物理交织的髓质亚区，消除不合理的 ARI 惩罚
-    if "final_annot" in adata.obs.columns:
-        adata.obs["final_annot"] = adata.obs["final_annot"].astype(str).str.replace("medulla cords", "medulla").str.replace("medulla sinuses", "medulla")
     print("\n" + "="*50)
     print("🔥 诊断 1: Domain vs 切片批次 (检查批次效应是否消除)")
     print(pd.crosstab(adata.obs['Domain'], adata.obs['batch']))
