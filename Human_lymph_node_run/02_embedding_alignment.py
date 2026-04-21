@@ -67,8 +67,8 @@ def main():
 
     hgat_epoch = 200
     hgat_batches = 6
-    sim_threshold = 0.3
-    c_neigh_het = 0.9
+    sim_threshold = 0.15
+    c_neigh_het = 0.15
     n_neigh_hom = 10
     mini_batch = False
 

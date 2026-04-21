@@ -46,7 +46,7 @@ def main():
     loc_align.init_align(
         emb_key="STAIR",
         spatial_key="spatial",
-        num_mnn=2,
+        num_mnn=10,
         use_scale=True,
     )
 
@@ -56,7 +56,7 @@ def main():
             slice_boundary=True,
             domain_boundary=True,
             num_domains=2,
-            alpha=80,
+            alpha=45,
             return_result=False,
         )
     except Exception as exc:
@@ -66,7 +66,7 @@ def main():
             domain_key="Domain",
             slice_boundary=True,
             domain_boundary=False,
-            alpha=80,
+            alpha=45,
             return_result=False,
         )
 
