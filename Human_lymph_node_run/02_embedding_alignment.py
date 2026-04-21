@@ -72,7 +72,7 @@ def main():
     n_neigh_hom = 10
     mini_batch = False
 
-    cluster_num = 9
+    cluster_num = 8
 
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     result_dir = os.path.join(root_dir, "Human_lymph_node_result")
@@ -134,6 +134,7 @@ def main():
     )
 
     emb_align.train_hgat(
+        gamma=0.80,
         mini_batch=mini_batch,
         epoch_hgat=hgat_epoch,
         batches=hgat_batches,
@@ -147,7 +148,7 @@ def main():
     attention_file = os.path.join(embedding_dir, "attention.csv")
     attention.to_csv(attention_file)
 
-    # Prefer mclust, fallback to leiden when R-side runtime/packages are unavailable.
+    # Prefer mclust, fallback to kmeans when R-side runtime/packages are unavailable.
     try:
         adata = cluster_func(
             adata,
@@ -158,16 +159,16 @@ def main():
         )
         cluster_method = "mclust"
     except Exception as exc:
-        print("mclust failed, fallback to leiden clustering.")
+        print("mclust failed, fallback to kmeans clustering.")
         print(f"Detail: {exc}")
         adata = cluster_func(
             adata,
-            clustering="leiden",
+            clustering="kmeans",
             use_rep="STAIR",
-            res=1.0,
+            cluster_num=cluster_num,
             key_add="STAIR",
         )
-        cluster_method = "leiden"
+        cluster_method = "kmeans"
 
     adata.obs["Domain"] = adata.obs["STAIR"].astype(str)
 
