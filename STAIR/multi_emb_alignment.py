@@ -20,7 +20,8 @@ class Multi_Emb_Align(Emb_Align):
     def __init__(self, adata, batch_key=None, hvg=False, n_hidden=128, n_latent=32, 
                  dropout_rate=0.2, likelihood="nb", device=None, num_workers=4, 
                  result_path=None, make_log=True, atac_key="ATAC",
-                 encode_batch=False, decode_batch=True):
+                 encode_batch=False, decode_batch=True,
+                 atac_decoder_activation='exp'):
         if hvg:
             hvg = min(int(hvg), adata.shape[1])
         
@@ -34,6 +35,7 @@ class Multi_Emb_Align(Emb_Align):
         self.dropout_rate = dropout_rate
         self.encode_batch = encode_batch
         self.decode_batch = decode_batch
+        self.atac_decoder_activation = atac_decoder_activation
         n_input_rna = self.n_input # 父类已提取 RNA 维度
         n_input_atac = adata.obsm[atac_key].shape[1]
         
@@ -47,10 +49,20 @@ class Multi_Emb_Align(Emb_Align):
             dropout=dropout_rate,
             encode_batch=self.encode_batch,
             decode_batch=self.decode_batch,
+            atac_decoder_activation=self.atac_decoder_activation,
         ).to(self.device)
 
     # 覆盖父类方法：使用多组学 Dataset
-    def prepare(self, count_key=None, lib_size='explog', normalize=True, scale=False):
+    def prepare(
+        self,
+        count_key=None,
+        lib_size='explog',
+        normalize=True,
+        scale=False,
+        atac_transform='log1p',
+        atac_clip_nonnegative=True,
+        atac_standardize=False,
+    ):
         if self.hvg:
             if count_key is None:
                 count_key = 'counts'
@@ -108,6 +120,7 @@ class Multi_Emb_Align(Emb_Align):
                     dropout=self.dropout_rate,
                     encode_batch=self.encode_batch,
                     decode_batch=self.decode_batch,
+                    atac_decoder_activation=self.atac_decoder_activation,
                 ).to(self.device)
             if self.make_log:
                 self.makeLog(f"  RNA HVG selection: {self.n_input} genes")
@@ -121,12 +134,19 @@ class Multi_Emb_Align(Emb_Align):
             size=lib_size,
             normalize=normalize,
             scale=scale,
+            atac_transform=atac_transform,
+            atac_clip_nonnegative=atac_clip_nonnegative,
+            atac_standardize=atac_standardize,
         )
         if self.make_log:
             self.makeLog(f"  Library size: {lib_size}")
             self.makeLog(f"  Input normalize: {normalize}")
             self.makeLog(f"  Input scale: {scale}")
             self.makeLog(f"  Second modality key: {self.atac_key}")
+            self.makeLog(f"  Second modality transform: {atac_transform}")
+            self.makeLog(f"  Second modality clip nonnegative: {atac_clip_nonnegative}")
+            self.makeLog(f"  Second modality standardize: {atac_standardize}")
+            self.makeLog(f"  Second modality decoder activation: {self.atac_decoder_activation}")
             self.makeLog(f"  Encode batch in AE: {self.encode_batch}")
             self.makeLog(f"  Decode batch in AE: {self.decode_batch}")
 

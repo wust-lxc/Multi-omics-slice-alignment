@@ -69,7 +69,11 @@ def main():
     else:
         epi_feat = _to_dense(adata_peak.X)
         epi_source = "X"
-    adata_rna.obsm["EPI"] = _to_positive_features(epi_feat)
+    epi_feat = _to_positive_features(epi_feat)
+    epi_transform = "positive_99pct"
+    adata_rna.obsm["EPI"] = epi_feat
+    adata_rna.uns["EPI_source"] = epi_source
+    adata_rna.uns["EPI_transform"] = epi_transform
 
     adata_rna.obs["original_barcode"] = adata_rna.obs_names.astype(str)
     adata_rna.obs["batch"] = "ATAC"
@@ -99,12 +103,13 @@ def main():
                 "n_genes": int(adata_rna.n_vars),
                 "epi_dim": int(adata_rna.obsm["EPI"].shape[1]),
                 "epi_source": epi_source,
+                "epi_transform": epi_transform,
             }
         ]
     ).to_csv(result_dir / "input_summary.csv", index=False)
 
     print(f"Prepared ATAC single-slice data: cells={adata_rna.n_obs}, genes={adata_rna.n_vars}")
-    print(f"Epigenomic feature source: {epi_source}, dim={adata_rna.obsm['EPI'].shape[1]}")
+    print(f"Epigenomic feature source: {epi_source}, transform={epi_transform}, dim={adata_rna.obsm['EPI'].shape[1]}")
     print(f"Saved processed data to: {processed_file}")
 
 

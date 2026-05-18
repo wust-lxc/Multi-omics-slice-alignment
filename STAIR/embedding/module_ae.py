@@ -8,6 +8,7 @@ from torch import nn
 # activation function
 
 exp_act = lambda x: torch.exp(x)
+identity_act = lambda x: x
 
 def acti_fun(activate):
     if activate == 'relu':
@@ -20,6 +21,9 @@ def acti_fun(activate):
         return F.softplus
     elif activate =='tanh':
         return F.tanh
+    elif activate in ('identity', 'linear', None):
+        return identity_act
+    raise ValueError(f"Unsupported activation: {activate}")
 
 
 # ============================================================================ #
@@ -154,5 +158,4 @@ class New_ZINB_AE(nn.Module):
     
 
 ae_dict = {'zinb':New_ZINB_AE, 'nb':New_NB_AE}
-
 

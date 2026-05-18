@@ -97,7 +97,7 @@ def _train_single_slice_hypergat(
 def main():
     set_seed(42)
 
-    hvg_top = 3000
+    hvg_top = int(os.environ.get("STAIR_ATAC_HVG_TOP", "3000"))
     ae_epoch = 120
     ae_batch_size = 256
     loss_weight_rna = 1.0
@@ -105,13 +105,14 @@ def main():
     epi_loss = "mse"
     hypergat_epoch = 180
     hypergat_n_neigh = 12
-    hypergat_sim_threshold = 0.20
+    hypergat_sim_threshold = 0.70
+    hypergat_residual_weight = 0.65
 
     cluster_num = 18
     mclust_source_key = "STAIR_spatial"
     mclust_rep_key = "STAIR_mclust"
-    mclust_pca_components = 10
-    mclust_model_name = "EEE"
+    mclust_pca_components = 8
+    mclust_model_name = "EVE"
 
     root_dir = Path(__file__).resolve().parents[2]
     result_dir = root_dir / "Mouse_brain_result" / "ATAC"
@@ -155,6 +156,7 @@ def main():
         n_neigh=hypergat_n_neigh,
         sim_threshold=hypergat_sim_threshold,
         epoch=hypergat_epoch,
+        residual_weight=hypergat_residual_weight,
     )
     adata.obsm["STAIR"] = adata.obsm["STAIR_spatial"].copy()
 
@@ -175,14 +177,19 @@ def main():
     )
     adata.obs["Domain_mclust_global"] = adata.obs["STAIR"].astype(str)
     adata.obs["Domain"] = adata.obs["Domain_mclust_global"].astype(str)
+    domain_refinement = f"none_pure_global_mclust_g{cluster_num}_{mclust_rep_key}"
     adata.obs["cluster_method"] = "mclust"
     adata.uns["cluster_method"] = "mclust"
+    adata.uns["domain_refinement"] = domain_refinement
+    adata.obs["domain_refinement"] = domain_refinement
     adata.uns["mclust_cluster_num"] = int(cluster_num)
     adata.uns["mclust_rep_key"] = mclust_rep_key
     adata.uns["mclust_source_key"] = mclust_source_key
     adata.uns["mclust_pca_components"] = int(mclust_pca_components)
     adata.uns["mclust_model_name"] = mclust_model_name
     adata.uns["single_slice_spatial_graph"] = "adaptive_hypergraph"
+    adata.uns["atac_loss_weight"] = float(loss_weight_epi)
+    adata.uns["atac_feature_transform"] = str(adata.uns.get("EPI_transform", "positive_99pct"))
 
     sc.pp.neighbors(adata, use_rep="STAIR")
     sc.tl.umap(adata, min_dist=0.2)
@@ -191,6 +198,7 @@ def main():
 
     print("Clustering method: mclust")
     print(f"mclust clusters: G={cluster_num}")
+    print(f"Domain refinement: {domain_refinement}")
     print(f"Single-slice spatial graph: adaptive hypergraph, n_neigh={hypergat_n_neigh}, sim_threshold={hypergat_sim_threshold}")
     print(f"Updated processed data: {processed_file}")
 

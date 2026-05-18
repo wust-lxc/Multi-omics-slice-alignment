@@ -49,6 +49,8 @@ class MultiOmicsDataset(Dataset):
         normalize=True,
         scale=False,
         atac_transform='log1p',
+        atac_clip_nonnegative=True,
+        atac_standardize=False,
     ):
         super(MultiOmicsDataset, self).__init__()
 
@@ -76,14 +78,23 @@ class MultiOmicsDataset(Dataset):
         # large outliers that otherwise dominate the fusion branch.
         raw_atac = _to_dense_float32(adata.obsm[atac_key])
         raw_atac = np.nan_to_num(raw_atac, nan=0.0, posinf=0.0, neginf=0.0)
-        raw_atac = np.clip(raw_atac, 0.0, None)
+        if atac_clip_nonnegative:
+            raw_atac = np.clip(raw_atac, 0.0, None)
         self.feat_atac = raw_atac.copy()
         if atac_transform is None or atac_transform == 'none':
             pass
         elif atac_transform == 'log1p':
+            if not atac_clip_nonnegative and np.min(self.feat_atac) < 0:
+                raise ValueError("atac_transform='log1p' requires nonnegative ATAC features.")
             self.feat_atac = np.log1p(self.feat_atac).astype(np.float32)
         else:
             raise ValueError("atac_transform must be one of {None, 'none', 'log1p'}")
+
+        if atac_standardize:
+            mean = self.feat_atac.mean(axis=0, keepdims=True)
+            std = self.feat_atac.std(axis=0, keepdims=True)
+            std[std <= 1e-6] = 1.0
+            self.feat_atac = ((self.feat_atac - mean) / std).astype(np.float32)
 
         self.count_atac = raw_atac.copy()
         self.size_atac = np.log1p(np.maximum(self.count_atac.sum(1), 0.0)).astype(np.float32).reshape(-1, 1)

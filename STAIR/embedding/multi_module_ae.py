@@ -16,6 +16,7 @@ class MultiOmics_ZINB_AE(nn.Module):
         dropout=0.2,
         encode_batch=False,
         decode_batch=True,
+        atac_decoder_activation='exp',
     ):
         super(MultiOmics_ZINB_AE, self).__init__()
         
@@ -24,6 +25,7 @@ class MultiOmics_ZINB_AE(nn.Module):
         self.input_dim_atac = input_dim_atac
         self.encode_batch = bool(encode_batch and n_batch is not None)
         self.decode_batch = bool(decode_batch and n_batch is not None)
+        self.atac_decoder_activation = atac_decoder_activation
         
         input_dim_rna_all = input_dim_rna + n_batch if self.encode_batch else input_dim_rna
         input_dim_atac_all = input_dim_atac + n_batch if self.encode_batch else input_dim_atac
@@ -45,7 +47,7 @@ class MultiOmics_ZINB_AE(nn.Module):
         self.dec_rna_drop = FC_Layer(hidden_dim, input_dim_rna, bn=False, activate='sigmoid')
         
         self.dec_atac_1 = FC_Layer(latent_dim_all, hidden_dim, bn=False, activate='relu')
-        self.dec_atac_disp = FC_Layer(hidden_dim, input_dim_atac, bn=False, activate='exp')
+        self.dec_atac_disp = FC_Layer(hidden_dim, input_dim_atac, bn=False, activate=atac_decoder_activation)
         self.dec_atac_drop = FC_Layer(hidden_dim, input_dim_atac, bn=False, activate='sigmoid')
         
         if self.n_batch is not None:
