@@ -6,6 +6,7 @@
 /Human_lymph_node_result/
 /Simulation_result/
 /Mouse_brain_result/
+/MISAR_result/
 
 # OS / editor / local state
 .DS_Store

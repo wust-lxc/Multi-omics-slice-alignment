@@ -1,3 +1,0 @@
-现在我开始对Mouse_Brain这个数据集来做实验，每张切片都包含了表观组和转录组两种组学吗，总共四张切片。
-现在做H3K27ac和ATAC这两张切片的对齐(不需要计算ari)只需要计算倒角距离，实验结果放在/root/autodl-tmp/STAIR-main/Mouse_brain_result/H3K27ac_ATAC里面，实验流程代码放在/root/autodl-tmp/STAIR-main/Mouse_Brain_run/H3K27ac_ATAC。
-现在做ATAC这一张切片的实验，实验结果放在/root/autodl-tmp/STAIR-main/Mouse_brain_result/ATAC里面，实验流程代码放在/root/autodl-tmp/STAIR-main/Mouse_Brain_run/ATAC。
