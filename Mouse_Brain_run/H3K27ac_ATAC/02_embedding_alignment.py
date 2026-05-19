@@ -47,11 +47,11 @@ def main():
     n_neigh_hom = 10
     n_neigh_het = 30
     mini_batch = False
-    cluster_num = 16
+    cluster_num = 18
     mclust_source_key = "STAIR_bc"
     mclust_rep_key = "STAIR_mclust"
     mclust_pca_components = 10
-    mclust_model_name = "EEE"
+    mclust_model_name = "EEV"
 
     root_dir = Path(__file__).resolve().parents[2]
     result_dir = root_dir / "Mouse_brain_result" / "H3K27ac_ATAC"
@@ -111,13 +111,14 @@ def main():
         sim_threshold=sim_threshold,
     )
 
+    set_seed(42)
     emb_align.train_hgat(
-        gamma=0.65,
+        gamma=0.85,
         mini_batch=mini_batch,
         epoch_hgat=hgat_epoch,
         batches=hgat_batches,
         dropout_hom=0.25,
-        dropout_het=0.20,
+        dropout_het=0.25,
     )
 
     adata, attention = emb_align.predict_hgat(mini_batch=mini_batch, batches=hgat_batches)

@@ -35,6 +35,18 @@ def main():
 
     if "Domain" not in adata.obs:
         adata.obs["Domain"] = adata.obs["batch"].astype(str)
+    uns_keep = {
+        key: adata.uns[key]
+        for key in [
+            "cluster_method",
+            "mclust_rep_key",
+            "mclust_source_key",
+            "mclust_pca_components",
+            "mclust_model_name",
+            "mclust_cluster_num",
+        ]
+        if key in adata.uns
+    }
 
     keys_order = (
         adata.obs[["batch", "slice_order"]]
@@ -68,6 +80,7 @@ def main():
     loc_align.plot_edge(spatial_key="transform_init", figsize=(6, 6), s=1.5)
 
     adata = loc_align.fine_align(max_iterations=fine_max_iterations, tolerance=fine_tolerance)
+    adata.uns.update(uns_keep)
 
     for basis, filename in [
         ("transform_init", "alignment_init.png"),

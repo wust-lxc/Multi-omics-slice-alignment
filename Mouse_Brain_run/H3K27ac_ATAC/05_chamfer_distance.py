@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
+from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
 
 
@@ -53,6 +54,169 @@ def _minmax_normalize_by_slice(points: np.ndarray, batches: np.ndarray) -> np.nd
     return out
 
 
+def _moran_i_knn(values: np.ndarray, coords: np.ndarray, k: int = 6) -> float:
+    values = np.asarray(values, dtype=np.float64).reshape(-1)
+    coords = np.asarray(coords, dtype=np.float64)
+    n = values.shape[0]
+    if n < 3:
+        return np.nan
+
+    k_use = max(1, min(int(k), n - 1))
+    neigh = NearestNeighbors(n_neighbors=k_use + 1, metric="euclidean").fit(coords)
+    neigh_idx = neigh.kneighbors(coords, return_distance=False)[:, 1:]
+
+    z = values - values.mean()
+    denom = np.sum(z * z)
+    if denom <= 0:
+        return np.nan
+
+    w = 1.0 / float(k_use)
+    num = np.sum(z[:, None] * z[neigh_idx] * w)
+    return float(num / denom)
+
+
+def _add_truth_labels(adata, root_dir: Path) -> None:
+    truth_sources = {
+        "H3K27ac": root_dir / "data" / "Mouse_Brain_H3K27ac" / "3d-OT.h5ad",
+        "ATAC": root_dir / "data" / "Mouse_Brain_ATAC" / "3d-OT.h5ad",
+    }
+    adata.obs["truth"] = pd.NA
+    adata.obs["truth_prefixed"] = pd.NA
+
+    for slice_name, truth_file in truth_sources.items():
+        if not truth_file.exists():
+            continue
+        adata_truth = sc.read_h5ad(truth_file, backed="r")
+        try:
+            if "truth" not in adata_truth.obs:
+                continue
+            idx = adata.obs["batch"].astype(str) == slice_name
+            barcodes = adata.obs.loc[idx, "original_barcode"].astype(str)
+            common = barcodes[barcodes.isin(adata_truth.obs_names)]
+            if common.empty:
+                continue
+            truth_map = adata_truth.obs.loc[common.values, "truth"].astype(str).to_dict()
+            mapped = barcodes.map(truth_map)
+            adata.obs.loc[idx, "truth"] = mapped.values
+            adata.obs.loc[idx, "truth_prefixed"] = [
+                f"{slice_name}:{x}" if pd.notna(x) else pd.NA for x in mapped.values
+            ]
+        finally:
+            adata_truth.file.close()
+
+
+def _add_ari_row(metrics_rows: list[dict], adata, slice_name: str, truth_key: str = "truth", pred_key: str = "Domain") -> None:
+    if truth_key not in adata.obs or pred_key not in adata.obs:
+        return
+    if slice_name == "ALL":
+        idx = pd.Series(True, index=adata.obs_names)
+        truth_use = "truth_prefixed" if "truth_prefixed" in adata.obs else truth_key
+    else:
+        idx = adata.obs["batch"].astype(str) == slice_name
+        truth_use = truth_key
+
+    valid = idx & ~adata.obs[truth_use].isna() & ~adata.obs[pred_key].isna()
+    if int(valid.sum()) == 0:
+        return
+    y_true = adata.obs.loc[valid, truth_use].astype(str)
+    y_pred = adata.obs.loc[valid, pred_key].astype(str)
+    metrics_rows.append(
+        {
+            "metric_group": "clustering",
+            "metric_name": "ARI",
+            "slice": slice_name,
+            "slice_pair": "H3K27ac|ATAC",
+            "value": float(adjusted_rand_score(y_true, y_pred)),
+            "extra": (
+                f"truth_key={truth_use};pred_key={pred_key};n_valid={int(valid.sum())};"
+                f"n_truth={int(y_true.nunique())};n_pred={int(y_pred.nunique())}"
+            ),
+        }
+    )
+
+
+def _add_moran_row(metrics_rows: list[dict], adata, slice_name: str, coord_key: str, pred_key: str = "Domain", k: int = 6) -> None:
+    if pred_key not in adata.obs or coord_key not in adata.obsm:
+        return
+    if slice_name == "ALL":
+        idx = np.ones(adata.n_obs, dtype=bool)
+    else:
+        idx = (adata.obs["batch"].astype(str).values == slice_name)
+    if int(idx.sum()) < 3:
+        return
+
+    labels = adata.obs.loc[idx, pred_key].astype(str)
+    domain_codes = pd.Categorical(labels).codes.astype(np.float64)
+    coords = np.asarray(adata.obsm[coord_key], dtype=np.float64)[idx]
+    metrics_rows.append(
+        {
+            "metric_group": "moran",
+            "metric_name": "Moran's I",
+            "slice": slice_name,
+            "slice_pair": "H3K27ac|ATAC",
+            "value": float(_moran_i_knn(domain_codes, coords, k=k)),
+            "extra": f"source=moran_i_domain_knn;coords={coord_key};k={k};n_cells={int(idx.sum())}",
+        }
+    )
+
+
+def _plot_spatial_comparison(adata, result_dir: Path, batch_key: str = "batch", truth_key: str = "truth", pred_key: str = "Domain") -> Path | None:
+    if truth_key not in adata.obs or pred_key not in adata.obs or "spatial" not in adata.obsm:
+        return None
+
+    adata_plot = adata.copy()
+    adata_plot.obs[truth_key] = adata_plot.obs[truth_key].astype("category")
+    adata_plot.obs[pred_key] = adata_plot.obs[pred_key].astype("category")
+
+    slices = (
+        adata_plot.obs[[batch_key, "slice_order"]]
+        .drop_duplicates()
+        .sort_values("slice_order")[batch_key]
+        .astype(str)
+        .tolist()
+        if "slice_order" in adata_plot.obs
+        else sorted(adata_plot.obs[batch_key].astype(str).unique())
+    )
+    if len(slices) == 0:
+        return None
+
+    fig, axes = plt.subplots(nrows=len(slices), ncols=2, figsize=(14, 6 * len(slices)))
+    axes = np.array(axes).reshape(len(slices), 2)
+
+    for i, slice_id in enumerate(slices):
+        adata_sub = adata_plot[adata_plot.obs[batch_key].astype(str) == slice_id].copy()
+
+        sc.pl.embedding(
+            adata_sub,
+            basis="spatial",
+            color=truth_key,
+            ax=axes[i, 0],
+            show=False,
+            title=f"Slice: {slice_id} | Ground Truth",
+            frameon=False,
+            size=60,
+            legend_fontsize=10,
+        )
+
+        sc.pl.embedding(
+            adata_sub,
+            basis="spatial",
+            color=pred_key,
+            ax=axes[i, 1],
+            show=False,
+            title=f"Slice: {slice_id} | STAIR Domain",
+            frameon=False,
+            size=60,
+            legend_fontsize=10,
+        )
+
+    plt.tight_layout()
+    output_path = result_dir / "spatial_comparison_2D.png"
+    plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
+    plt.close()
+    return output_path
+
+
 def main():
     root_dir = Path(__file__).resolve().parents[2]
     result_dir = root_dir / "Mouse_brain_result" / "H3K27ac_ATAC"
@@ -67,6 +231,7 @@ def main():
     adata = sc.read_h5ad(processed_file)
     if "transform_init" not in adata.obsm or "transform_fine" not in adata.obsm:
         raise KeyError("transform_init/transform_fine missing. Run 04_location_alignment.py first.")
+    _add_truth_labels(adata, root_dir)
 
     slice_a, slice_b = "H3K27ac", "ATAC"
     batches = adata.obs["batch"].astype(str).values
@@ -112,6 +277,7 @@ def main():
     )
 
     color_key = "Domain" if "Domain" in adata.obs else "batch"
+    spatial_comparison_file = _plot_spatial_comparison(adata, result_dir)
 
     plt.figure(figsize=(5.8, 5.2))
     sc.pl.embedding(
@@ -179,6 +345,12 @@ def main():
                 "extra": "",
             }
         )
+        _add_ari_row(metrics_rows, adata, slice_name="ALL", truth_key="truth", pred_key="Domain")
+        _add_ari_row(metrics_rows, adata, slice_name="H3K27ac", truth_key="truth", pred_key="Domain")
+        _add_ari_row(metrics_rows, adata, slice_name="ATAC", truth_key="truth", pred_key="Domain")
+        _add_moran_row(metrics_rows, adata, slice_name="ALL", coord_key="rec_3d", pred_key="Domain", k=6)
+        _add_moran_row(metrics_rows, adata, slice_name="H3K27ac", coord_key="spatial", pred_key="Domain", k=6)
+        _add_moran_row(metrics_rows, adata, slice_name="ATAC", coord_key="spatial", pred_key="Domain", k=6)
     metrics_rows.append(
         {
             "metric_group": "clustering",
@@ -218,6 +390,8 @@ def main():
     print(f"Saved Chamfer distances to: {chamfer_file}")
     print(f"Saved metrics summary to: {metric_file}")
     print(f"Saved final AnnData to: {final_file}")
+    if spatial_comparison_file is not None:
+        print(f"Saved 2D spatial comparison plot to: {spatial_comparison_file}")
 
 
 if __name__ == "__main__":
