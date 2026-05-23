@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from scipy import sparse
-from sklearn.metrics import adjusted_rand_score
+from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, normalized_mutual_info_score
 from sklearn.neighbors import NearestNeighbors
 
 
@@ -290,10 +290,16 @@ def _moran_i_knn(values: np.ndarray, coords: np.ndarray, k: int = 6) -> float:
     return float(num / denom)
 
 
-def _ari_rows(adata, truth_key: str = "final_annot", pred_key: str = "Domain", batch_key: str = "batch"):
+def _clustering_score_rows(adata, truth_key: str = "final_annot", pred_key: str = "Domain", batch_key: str = "batch"):
     rows = []
     if truth_key not in adata.obs or pred_key not in adata.obs:
         return rows
+
+    scorers = [
+        ("ari", adjusted_rand_score),
+        ("nmi", normalized_mutual_info_score),
+        ("ami", adjusted_mutual_info_score),
+    ]
 
     valid_mask = ~adata.obs[truth_key].isna() & ~adata.obs[pred_key].isna()
     if int(valid_mask.sum()) == 0:
@@ -301,16 +307,17 @@ def _ari_rows(adata, truth_key: str = "final_annot", pred_key: str = "Domain", b
 
     y_true_all = adata.obs.loc[valid_mask, truth_key].astype(str)
     y_pred_all = adata.obs.loc[valid_mask, pred_key].astype(str)
-    rows.append(
-        {
-            "metric_group": "clustering",
-            "metric_name": "ari_global",
-            "slice": "ALL",
-            "slice_pair": "ALL",
-            "value": float(adjusted_rand_score(y_true_all, y_pred_all)),
-            "extra": f"n_valid={int(valid_mask.sum())}",
-        }
-    )
+    for metric_prefix, scorer in scorers:
+        rows.append(
+            {
+                "metric_group": "clustering",
+                "metric_name": f"{metric_prefix}_global",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(scorer(y_true_all, y_pred_all)),
+                "extra": f"truth_key={truth_key};pred_key={pred_key};n_valid={int(valid_mask.sum())}",
+            }
+        )
 
     batch_values = adata.obs[batch_key].astype(str)
     for batch_name in sorted(batch_values.unique()):
@@ -319,16 +326,17 @@ def _ari_rows(adata, truth_key: str = "final_annot", pred_key: str = "Domain", b
             continue
         y_true_batch = adata.obs.loc[mask_batch, truth_key].astype(str)
         y_pred_batch = adata.obs.loc[mask_batch, pred_key].astype(str)
-        rows.append(
-            {
-                "metric_group": "clustering",
-                "metric_name": "ari_by_slice",
-                "slice": str(batch_name),
-                "slice_pair": "",
-                "value": float(adjusted_rand_score(y_true_batch, y_pred_batch)),
-                "extra": f"n_valid={int(mask_batch.sum())}",
-            }
-        )
+        for metric_prefix, scorer in scorers:
+            rows.append(
+                {
+                    "metric_group": "clustering",
+                    "metric_name": f"{metric_prefix}_by_slice",
+                    "slice": str(batch_name),
+                    "slice_pair": "",
+                    "value": float(scorer(y_true_batch, y_pred_batch)),
+                    "extra": f"truth_key={truth_key};pred_key={pred_key};n_valid={int(mask_batch.sum())}",
+                }
+            )
     return rows
 
 
@@ -403,7 +411,8 @@ def _plot_spatial_comparison(adata, result_dir: str, batch_key: str = "batch", t
     if len(slices) == 0:
         return ""
 
-    fig, axes = plt.subplots(nrows=len(slices), ncols=2, figsize=(14, 6 * len(slices)))
+    spot_size = 180
+    fig, axes = plt.subplots(nrows=len(slices), ncols=2, figsize=(10.5, 4.4 * len(slices)))
     axes = np.array(axes).reshape(len(slices), 2)
 
     for i, slice_id in enumerate(slices):
@@ -417,7 +426,7 @@ def _plot_spatial_comparison(adata, result_dir: str, batch_key: str = "batch", t
             show=False,
             title=f"Slice: {slice_id} | Ground Truth",
             frameon=False,
-            size=60,
+            size=spot_size,
             legend_fontsize=10,
         )
 
@@ -429,11 +438,11 @@ def _plot_spatial_comparison(adata, result_dir: str, batch_key: str = "batch", t
             show=False,
             title=f"Slice: {slice_id} | STAIR Domain",
             frameon=False,
-            size=60,
+            size=spot_size,
             legend_fontsize=10,
         )
 
-    plt.tight_layout()
+    plt.tight_layout(pad=0.35, w_pad=0.15, h_pad=0.65)
     output_path = os.path.join(result_dir, "spatial_comparison_2D.png")
     plt.savefig(output_path, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close()
@@ -762,7 +771,7 @@ def main():
             "extra": "",
         }
     )
-    rows.extend(_ari_rows(adata))
+    rows.extend(_clustering_score_rows(adata))
     rows.extend(_domain_coverage_rows(adata))
 
     spatial_comparison_file = _plot_spatial_comparison(adata, result_dir=result_dir)

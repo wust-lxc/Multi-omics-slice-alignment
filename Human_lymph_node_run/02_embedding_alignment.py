@@ -153,12 +153,12 @@ def main():
     n_neigh_het = 30
     mini_batch = False
 
-    cluster_num = 8
+    cluster_num = 10
     mclust_source_key = "STAIR"
     mclust_rep_key = "STAIR_mclust"
     # PCA components used as the mclust input dimension; this is not the
     # number of mclust clusters. cluster_num above controls G.
-    mclust_pca_components = 3
+    mclust_pca_components = 2
     mclust_model_name = "EEV"
 
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
