@@ -5,12 +5,37 @@ import sys
 from pathlib import Path
 
 
-def run_step(script_path: Path) -> None:
+def _python_has_scanpy(python_exe: str) -> bool:
+    try:
+        subprocess.run(
+            [python_exe, "-c", "import scanpy"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def resolve_python() -> str:
+    if _python_has_scanpy(sys.executable):
+        return sys.executable
+
+    stair_env_python = Path("/root/miniconda3/envs/STAIR-env/bin/python")
+    if stair_env_python.exists() and _python_has_scanpy(str(stair_env_python)):
+        print(f"[INFO] Current Python lacks scanpy; using {stair_env_python}")
+        return str(stair_env_python)
+
+    return sys.executable
+
+
+def run_step(script_path: Path, python_exe: str) -> None:
     print(f"[RUN] {script_path}")
-    subprocess.run([sys.executable, str(script_path)], check=True)
+    subprocess.run([python_exe, str(script_path)], check=True)
 
 
-def configure_runtime_threads() -> None:
+def configure_runtime_threads(python_exe: str) -> None:
     target_threads = {
         "OMP_NUM_THREADS": "1",
         "OPENBLAS_NUM_THREADS": "1",
@@ -26,7 +51,7 @@ def configure_runtime_threads() -> None:
         os.environ["PATH"] = "/usr/bin" + os.pathsep + os.environ.get("PATH", "")
         return
 
-    env_prefix = str(Path(sys.executable).resolve().parent.parent)
+    env_prefix = str(Path(python_exe).resolve().parent.parent)
     os.environ["CONDA_PREFIX"] = env_prefix
     os.environ["R_HOME"] = str(Path(env_prefix) / "lib" / "R")
     os.environ["PATH"] = str(Path(env_prefix) / "bin") + os.pathsep + os.environ.get("PATH", "")
@@ -34,7 +59,8 @@ def configure_runtime_threads() -> None:
 
 
 def main() -> int:
-    configure_runtime_threads()
+    python_exe = resolve_python()
+    configure_runtime_threads(python_exe)
 
     repo_root = Path(__file__).resolve().parent.parent
     run_dir = repo_root / "Simulation_run"
@@ -53,7 +79,7 @@ def main() -> int:
 
     try:
         for step in steps:
-            run_step(step)
+            run_step(step, python_exe)
     except subprocess.CalledProcessError as exc:
         print(f"[ERROR] Pipeline failed at: {exc.cmd}")
         return exc.returncode

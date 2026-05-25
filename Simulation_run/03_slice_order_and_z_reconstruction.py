@@ -1,35 +1,36 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import scanpy as sc
 
 
+SLICE_NAMES = [f"Simulation{i}" for i in range(1, 6)]
+
+
 def main():
-    fixed_order = [f"Simulation{i}" for i in range(1, 6)]
+    root_dir = Path(__file__).resolve().parent.parent
+    result_dir = root_dir / "Simulation_result"
+    processed_file = result_dir / "simulation_processed.h5ad"
+    order_file = result_dir / "predicted_slice_order.csv"
 
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    result_dir = os.path.join(root_dir, "Simulation_result")
-
-    processed_file = os.path.join(result_dir, "simulation_processed.h5ad")
-
-    if not os.path.exists(processed_file):
+    if not processed_file.exists():
         raise FileNotFoundError("simulation_processed.h5ad not found. Run 02_embedding_alignment.py first.")
 
     adata = sc.read_h5ad(processed_file)
 
     batches_present = set(adata.obs["batch"].astype(str).unique())
-    fixed_present = [b for b in fixed_order if b in batches_present]
-    missing = [b for b in fixed_order if b not in batches_present]
-    extras = sorted(list(batches_present - set(fixed_order)))
+    fixed_present = [b for b in SLICE_NAMES if b in batches_present]
+    missing = [b for b in SLICE_NAMES if b not in batches_present]
+    extras = sorted(list(batches_present - set(SLICE_NAMES)))
 
     if len(fixed_present) == 0:
         raise ValueError("None of the fixed-order slice names were found in adata.obs['batch'].")
 
     final_order = fixed_present + extras
-
     order_df = pd.DataFrame(
         {
             "batch": final_order,
@@ -42,14 +43,13 @@ def main():
     else:
         order_df["z_rec"] = 0.0
 
-    adata.obs["z_rec_raw"] = adata.obs["batch"].astype(str).map(
-        dict(zip(order_df["batch"], order_df["score"]))
-    ).astype(float)
-    adata.obs["z_rec"] = adata.obs["batch"].astype(str).map(
-        dict(zip(order_df["batch"], order_df["z_rec"]))
-    ).astype(float)
+    score_map = dict(zip(order_df["batch"], order_df["score"]))
+    z_map = dict(zip(order_df["batch"], order_df["z_rec"]))
 
-    order_df.to_csv(os.path.join(result_dir, "predicted_slice_order.csv"), index=False)
+    adata.obs["z_rec_raw"] = adata.obs["batch"].astype(str).map(score_map).astype(float)
+    adata.obs["z_rec"] = adata.obs["batch"].astype(str).map(z_map).astype(float)
+
+    order_df.to_csv(order_file, index=False)
     adata.write(processed_file)
 
     if missing:
@@ -57,6 +57,7 @@ def main():
     if extras:
         print(f"Warning: extra slices appended after fixed order: {extras}")
     print(f"Using fixed order: {final_order}")
+    print(f"Saved predicted order to: {order_file}")
     print(f"Updated processed data: {processed_file}")
 
 

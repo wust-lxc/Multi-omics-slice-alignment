@@ -1,7 +1,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os
+from pathlib import Path
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from scipy import sparse
+from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, normalized_mutual_info_score
 from sklearn.neighbors import NearestNeighbors
 
 
@@ -35,18 +37,15 @@ def _adjacent_chamfer_table(points: np.ndarray, batches: np.ndarray, order_use) 
         b_name = order_use[i + 1]
         a_pts = points[batches == a_name]
         b_pts = points[batches == b_name]
-        d_ab = _directed_chamfer(a_pts, b_pts)
-        d_ba = _directed_chamfer(b_pts, a_pts)
-        d_sym = _symmetric_chamfer(a_pts, b_pts)
         rows.append(
             {
                 "slice_a": a_name,
                 "slice_b": b_name,
                 "n_a": int(a_pts.shape[0]),
                 "n_b": int(b_pts.shape[0]),
-                "cd_sq_a_to_b": d_ab,
-                "cd_sq_b_to_a": d_ba,
-                "cd_sq_symmetric": d_sym,
+                "cd_sq_a_to_b": _directed_chamfer(a_pts, b_pts),
+                "cd_sq_b_to_a": _directed_chamfer(b_pts, a_pts),
+                "cd_sq_symmetric": _symmetric_chamfer(a_pts, b_pts),
             }
         )
     return pd.DataFrame(rows)
@@ -68,12 +67,6 @@ def _minmax_normalize_by_slice(points: np.ndarray, batches: np.ndarray) -> np.nd
         span[span <= 1e-12] = 1.0
         out[idx] = (p - p_min) / span
     return out
-
-
-def _neg_log10_safe(v: pd.Series, eps: float = 1e-12) -> pd.Series:
-    arr = np.asarray(v, dtype=np.float64)
-    arr = np.clip(arr, eps, None)
-    return pd.Series(-np.log10(arr), index=v.index)
 
 
 def _pick_hvg_mask(adata, top_fallback: int = 2000) -> np.ndarray:
@@ -166,7 +159,7 @@ def _cross_slice_expression_corr_table(
     coords_3d_key: str = "rec_3d",
     batch_key: str = "batch",
     hvg_fallback_top: int = 2000,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     if coords_3d_key not in adata.obsm:
         raise KeyError(f"{coords_3d_key} not found in adata.obsm")
     if batch_key not in adata.obs:
@@ -189,14 +182,12 @@ def _cross_slice_expression_corr_table(
         spearman_rna[i] = _spearman_corr(vec_a, vec_b)
 
     if "ADT" in adata.obsm:
-        adt_mat = adata.obsm["ADT"]
-        pearson_adt = _pairwise_pearson_for_pairs(adt_mat, pairs)
+        pearson_adt = _pairwise_pearson_for_pairs(adata.obsm["ADT"], pairs)
     else:
         pearson_adt = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
 
     if "STAIR" in adata.obsm:
-        stair_mat = adata.obsm["STAIR"]
-        pearson_stair = _pairwise_pearson_for_pairs(stair_mat, pairs)
+        pearson_stair = _pairwise_pearson_for_pairs(adata.obsm["STAIR"], pairs)
     else:
         pearson_stair = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
 
@@ -229,6 +220,8 @@ def _cross_slice_expression_corr_table(
             "pearson_median": float(pair_df["pearson_hvg"].median()) if not pair_df.empty else np.nan,
             "spearman_mean": float(pair_df["spearman_hvg"].mean()) if not pair_df.empty else np.nan,
             "spearman_median": float(pair_df["spearman_hvg"].median()) if not pair_df.empty else np.nan,
+            "pearson_adt_mean": float(pair_df["pearson_adt"].mean()) if not pair_df.empty else np.nan,
+            "pearson_stair_mean": float(pair_df["pearson_stair"].mean()) if not pair_df.empty else np.nan,
             "distance_3d_mean": float(pair_df["distance_3d"].mean()) if not pair_df.empty else np.nan,
         }
     ]
@@ -250,66 +243,288 @@ def _cross_slice_expression_corr_table(
                     "pearson_median": float(g["pearson_hvg"].median()),
                     "spearman_mean": float(g["spearman_hvg"].mean()),
                     "spearman_median": float(g["spearman_hvg"].median()),
+                    "pearson_adt_mean": float(g["pearson_adt"].mean()),
+                    "pearson_stair_mean": float(g["pearson_stair"].mean()),
                     "distance_3d_mean": float(g["distance_3d"].mean()),
                 }
             )
 
-    summary_df = pd.DataFrame(summary_rows)
-    return pair_df, summary_df, _adjacent_chamfer_table(coords_3d, batches, np.unique(batches))
+    return pair_df, pd.DataFrame(summary_rows)
+
+
+def _clustering_score_rows(adata, truth_key: str = "ground_truth", pred_key: str = "Domain", batch_key: str = "batch"):
+    rows = []
+    if truth_key not in adata.obs or pred_key not in adata.obs:
+        return rows
+
+    scorers = [
+        ("ari", adjusted_rand_score),
+        ("nmi", normalized_mutual_info_score),
+        ("ami", adjusted_mutual_info_score),
+    ]
+
+    valid_mask = ~adata.obs[truth_key].isna() & ~adata.obs[pred_key].isna()
+    if int(valid_mask.sum()) == 0:
+        return rows
+
+    y_true_all = adata.obs.loc[valid_mask, truth_key].astype(str)
+    y_pred_all = adata.obs.loc[valid_mask, pred_key].astype(str)
+    for metric_prefix, scorer in scorers:
+        rows.append(
+            {
+                "metric_group": "clustering",
+                "metric_name": f"{metric_prefix}_global",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(scorer(y_true_all, y_pred_all)),
+                "extra": f"truth_key={truth_key};pred_key={pred_key};n_valid={int(valid_mask.sum())}",
+            }
+        )
+
+    batch_values = adata.obs[batch_key].astype(str)
+    for batch_name in sorted(batch_values.unique()):
+        mask_batch = valid_mask & (batch_values == batch_name)
+        if int(mask_batch.sum()) == 0:
+            continue
+        y_true_batch = adata.obs.loc[mask_batch, truth_key].astype(str)
+        y_pred_batch = adata.obs.loc[mask_batch, pred_key].astype(str)
+        for metric_prefix, scorer in scorers:
+            rows.append(
+                {
+                    "metric_group": "clustering",
+                    "metric_name": f"{metric_prefix}_by_slice",
+                    "slice": str(batch_name),
+                    "slice_pair": "",
+                    "value": float(scorer(y_true_batch, y_pred_batch)),
+                    "extra": f"truth_key={truth_key};pred_key={pred_key};n_valid={int(mask_batch.sum())}",
+                }
+            )
+    return rows
+
+
+def _domain_coverage_rows(adata, truth_key: str = "ground_truth", pred_key: str = "Domain", batch_key: str = "batch"):
+    rows = []
+    if pred_key not in adata.obs or batch_key not in adata.obs:
+        return rows
+
+    batch_values = adata.obs[batch_key].astype(str)
+    pred_all = adata.obs[pred_key].dropna().astype(str)
+    rows.append(
+        {
+            "metric_group": "domain_coverage",
+            "metric_name": "n_pred_domains_global",
+            "slice": "ALL",
+            "slice_pair": "ALL",
+            "value": float(pred_all.nunique()),
+            "extra": "|".join(sorted(pred_all.unique().tolist())),
+        }
+    )
+
+    if truth_key in adata.obs:
+        truth_all = adata.obs[truth_key].dropna().astype(str)
+        rows.append(
+            {
+                "metric_group": "domain_coverage",
+                "metric_name": "n_truth_structures_global",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(truth_all.nunique()),
+                "extra": "|".join(sorted(truth_all.unique().tolist())),
+            }
+        )
+
+    for batch_name in sorted(batch_values.unique()):
+        idx = batch_values == batch_name
+        pred_values = adata.obs.loc[idx, pred_key].dropna().astype(str)
+        rows.append(
+            {
+                "metric_group": "domain_coverage",
+                "metric_name": "n_pred_domains_by_slice",
+                "slice": str(batch_name),
+                "slice_pair": "",
+                "value": float(pred_values.nunique()),
+                "extra": "|".join(sorted(pred_values.unique().tolist())),
+            }
+        )
+        if truth_key in adata.obs:
+            truth_values = adata.obs.loc[idx, truth_key].dropna().astype(str)
+            rows.append(
+                {
+                    "metric_group": "domain_coverage",
+                    "metric_name": "n_truth_structures_by_slice",
+                    "slice": str(batch_name),
+                    "slice_pair": "",
+                    "value": float(truth_values.nunique()),
+                    "extra": "|".join(sorted(truth_values.unique().tolist())),
+                }
+            )
+    return rows
+
+
+def _write_metrics_summary(adata, result_dir: Path, chamfer_adjacent: pd.DataFrame, corr_summary: pd.DataFrame) -> None:
+    rows = []
+    batches = adata.obs["batch"].astype(str).values
+    rows.extend(
+        [
+            {
+                "metric_group": "basic",
+                "metric_name": "n_cells",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(adata.n_obs),
+                "extra": "",
+            },
+            {
+                "metric_group": "basic",
+                "metric_name": "n_genes",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(adata.n_vars),
+                "extra": "",
+            },
+            {
+                "metric_group": "basic",
+                "metric_name": "n_adt",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(np.asarray(adata.obsm["ADT"]).shape[1]) if "ADT" in adata.obsm else 0.0,
+                "extra": "",
+            },
+        ]
+    )
+
+    for s in sorted(np.unique(batches)):
+        rows.append(
+            {
+                "metric_group": "basic",
+                "metric_name": "n_cells_per_slice",
+                "slice": str(s),
+                "slice_pair": "",
+                "value": float(np.sum(batches == s)),
+                "extra": "",
+            }
+        )
+
+    if "alignment_rms_init" in adata.uns:
+        rows.append(
+            {
+                "metric_group": "alignment",
+                "metric_name": "rms_displacement_init_vs_input",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(adata.uns["alignment_rms_init"]),
+                "extra": "",
+            }
+        )
+    if "alignment_rms_fine" in adata.uns:
+        rows.append(
+            {
+                "metric_group": "alignment",
+                "metric_name": "rms_displacement_fine_vs_input",
+                "slice": "ALL",
+                "slice_pair": "ALL",
+                "value": float(adata.uns["alignment_rms_fine"]),
+                "extra": "",
+            }
+        )
+
+    for _, row in chamfer_adjacent.iterrows():
+        rows.append(
+            {
+                "metric_group": "chamfer",
+                "metric_name": "cd_sq_symmetric_adjacent",
+                "slice": "",
+                "slice_pair": f"{row['slice_a']}|{row['slice_b']}",
+                "value": float(row["cd_sq_symmetric"]),
+                "extra": f"n_a={int(row['n_a'])};n_b={int(row['n_b'])}",
+            }
+        )
+
+    for _, row in corr_summary.iterrows():
+        rows.append(
+            {
+                "metric_group": "cross_slice_corr",
+                "metric_name": "pearson_hvg_mean",
+                "slice": "",
+                "slice_pair": str(row["slice_pair"]),
+                "value": float(row["pearson_mean"]),
+                "extra": f"level={row['level']};n_pairs={int(row['n_pairs'])};n_hvg={int(row['n_hvg'])}",
+            }
+        )
+        rows.append(
+            {
+                "metric_group": "cross_slice_corr",
+                "metric_name": "pearson_adt_mean",
+                "slice": "",
+                "slice_pair": str(row["slice_pair"]),
+                "value": float(row["pearson_adt_mean"]),
+                "extra": f"level={row['level']};n_pairs={int(row['n_pairs'])}",
+            }
+        )
+        rows.append(
+            {
+                "metric_group": "cross_slice_corr",
+                "metric_name": "pearson_stair_mean",
+                "slice": "",
+                "slice_pair": str(row["slice_pair"]),
+                "value": float(row["pearson_stair_mean"]),
+                "extra": f"level={row['level']};n_pairs={int(row['n_pairs'])}",
+            }
+        )
+
+    rows.extend(_clustering_score_rows(adata, truth_key="ground_truth", pred_key="Domain", batch_key="batch"))
+    rows.extend(_domain_coverage_rows(adata, truth_key="ground_truth", pred_key="Domain", batch_key="batch"))
+
+    if "metrics_moran_rows_json" in adata.uns:
+        try:
+            import json
+
+            rows.extend(json.loads(adata.uns["metrics_moran_rows_json"]))
+        except Exception:
+            pass
+
+    pd.DataFrame(rows).to_csv(result_dir / "metrics_summary.csv", index=False)
 
 
 def main():
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    result_dir = os.path.join(root_dir, "Simulation_result")
-    export_dir = os.path.join(result_dir, "export")
-    os.makedirs(export_dir, exist_ok=True)
+    root_dir = Path(__file__).resolve().parent.parent
+    result_dir = root_dir / "Simulation_result"
+    export_dir = result_dir / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
 
-    processed_file = os.path.join(result_dir, "simulation_processed.h5ad")
-    order_file = os.path.join(result_dir, "predicted_slice_order.csv")
+    processed_file = result_dir / "simulation_processed.h5ad"
+    final_file = result_dir / "adata.h5ad"
+    order_file = result_dir / "predicted_slice_order.csv"
 
-    if not os.path.exists(processed_file):
+    if not processed_file.exists():
         raise FileNotFoundError("simulation_processed.h5ad not found. Run 04_location_alignment.py first.")
 
     adata = sc.read_h5ad(processed_file)
     if "transform_fine" not in adata.obsm:
         raise KeyError("transform_fine not found in adata.obsm. Run 04_location_alignment.py first.")
+    if "z_rec" not in adata.obs:
+        raise KeyError("z_rec not found in adata.obs. Run 03_slice_order_and_z_reconstruction.py first.")
 
-    if os.path.exists(order_file):
+    if order_file.exists():
         order_df = pd.read_csv(order_file)
         order_use = order_df.sort_values("z_rec")["batch"].astype(str).tolist()
     else:
         order_use = sorted(adata.obs["batch"].astype(str).unique())
 
-    coords = adata.obsm["transform_fine"]
-    z_rec = adata.obs["z_rec"].astype(float).values if "z_rec" in adata.obs else None
+    coords = np.asarray(adata.obsm["transform_fine"], dtype=np.float64)
+    z_rec = adata.obs["z_rec"].astype(float).values
+    batches = adata.obs["batch"].astype(str).values
 
-    if z_rec is None:
-        raise KeyError("z_rec not found in adata.obs. Run 03_slice_order_and_z_reconstruction.py first.")
+    adata.obs["x_aligned"] = coords[:, 0]
+    adata.obs["y_aligned"] = coords[:, 1]
+    adata.obsm["rec_3d"] = np.column_stack([coords, z_rec])
+    adata.obsm["rec_3d_norm"] = _minmax_normalize_by_slice(adata.obsm["rec_3d"], batches)
 
-    coords_3d = np.column_stack([coords, z_rec])
-    coords_3d = _minmax_normalize_by_slice(coords_3d, adata.obs["batch"].astype(str).values)
-    adata.obsm["rec_3d"] = coords_3d
+    xy_aligned_plot = _minmax_normalize_by_slice(adata.obsm["transform_fine"], batches)
+    xy_input_plot = _minmax_normalize_by_slice(adata.obsm["spatial"], batches)
 
-    batches_plot = adata.obs["batch"].astype(str).values
-    xy_aligned_plot = _minmax_normalize_by_slice(adata.obsm["transform_fine"], batches_plot)
-    xy_input_plot = _minmax_normalize_by_slice(adata.obsm["spatial"], batches_plot)
-
-    adata.obsm["rec_3d_plot"] = np.column_stack(
-        [
-            xy_aligned_plot[:, 0],
-            xy_aligned_plot[:, 1],
-            -z_rec,
-        ]
-    )
-    adata.obsm["gt_3d_order_plot"] = np.column_stack(
-        [
-            xy_input_plot[:, 0],
-            xy_input_plot[:, 1],
-            -z_rec,
-        ]
-    )
-
-    adata.write(processed_file)
+    adata.obsm["rec_3d_plot"] = np.column_stack([xy_aligned_plot[:, 0], xy_aligned_plot[:, 1], -z_rec])
+    adata.obsm["gt_3d_order_plot"] = np.column_stack([xy_input_plot[:, 0], xy_input_plot[:, 1], -z_rec])
 
     color_key = "Domain" if "Domain" in adata.obs else "batch"
     plt.figure(figsize=(5.8, 5.2))
@@ -322,7 +537,7 @@ def main():
         show=False,
         title="Simulation reconstructed 3D",
     )
-    plt.savefig(os.path.join(result_dir, "reconstruction_3d_rec.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(result_dir / "reconstruction_3d_rec.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     plt.figure(figsize=(5.8, 5.2))
@@ -335,7 +550,7 @@ def main():
         show=False,
         title="Simulation reference 3D (x,y,z_rec)",
     )
-    plt.savefig(os.path.join(result_dir, "reconstruction_3d_reference.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(result_dir / "reconstruction_3d_reference.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     if "spatial" in adata.obsm:
@@ -361,7 +576,7 @@ def main():
                 if idx < n_slice:
                     batch_name = order_use[idx]
                     adata_tmp = adata[adata.obs["batch"].astype(str) == batch_name].copy()
-                    show_legend = (idx == n_slice - 1)
+                    show_legend = idx == n_slice - 1
                     sc.pl.embedding(
                         adata_tmp,
                         basis="spatial",
@@ -375,29 +590,35 @@ def main():
                     )
                 idx += 1
 
-        plt.savefig(os.path.join(result_dir, "spatial_domains_2d.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(result_dir / "spatial_domains_2d.png", dpi=300, bbox_inches="tight")
         plt.close()
 
-    chamfer_adjacent = _adjacent_chamfer_table(coords_3d, adata.obs["batch"].astype(str).values, order_use)
-    chamfer_adjacent.to_csv(os.path.join(result_dir, "chamfer_adjacent_slices.csv"), index=False)
+    chamfer_adjacent = _adjacent_chamfer_table(adata.obsm["rec_3d_norm"], batches, order_use)
+    chamfer_adjacent.to_csv(result_dir / "chamfer_adjacent_slices.csv", index=False)
 
-    pair_df, summary_df, _ = _cross_slice_expression_corr_table(adata)
-    pair_df.to_csv(os.path.join(result_dir, "cross_slice_nearest_expr_corr_pairs.csv"), index=False)
-    summary_df.to_csv(os.path.join(result_dir, "cross_slice_nearest_expr_corr_summary.csv"), index=False)
+    pair_df, summary_df = _cross_slice_expression_corr_table(adata, coords_3d_key="rec_3d_norm")
+    pair_df.to_csv(result_dir / "cross_slice_nearest_expr_corr_pairs.csv", index=False)
+    summary_df.to_csv(result_dir / "cross_slice_nearest_expr_corr_summary.csv", index=False)
+
+    _write_metrics_summary(adata, result_dir, chamfer_adjacent, summary_df)
 
     plt.figure(figsize=(5.5, 4.5))
     sc.pl.embedding(
         adata,
-        basis="rec_3d",
+        basis="rec_3d_norm",
         color=["batch", "Domain"],
         frameon=False,
         ncols=2,
         show=False,
     )
-    plt.savefig(os.path.join(export_dir, "rec_3d_batch_domain.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(export_dir / "rec_3d_batch_domain.png", dpi=300, bbox_inches="tight")
     plt.close()
 
+    adata.write(processed_file)
+    adata.write(final_file)
+
     print(f"Updated processed data: {processed_file}")
+    print(f"Saved final AnnData to: {final_file}")
     print(f"Saved exports to: {export_dir}")
 
 
