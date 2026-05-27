@@ -13,6 +13,13 @@ from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
 
 
+TRUTH_SOURCES = {
+    "H3K27ac": "Mouse_Brain_H3K27ac",
+    "ATAC": "Mouse_Brain_ATAC",
+}
+OTHER_METHOD_COLUMNS = ("3d-OT", "mclust", "COSMOS", "MISO", "SpatialGlue", "cellcharter")
+
+
 def _directed_chamfer_sq(a: np.ndarray, b: np.ndarray) -> float:
     if a.shape[0] == 0 or b.shape[0] == 0:
         return np.nan
@@ -76,14 +83,11 @@ def _moran_i_knn(values: np.ndarray, coords: np.ndarray, k: int = 6) -> float:
 
 
 def _add_truth_labels(adata, root_dir: Path) -> None:
-    truth_sources = {
-        "H3K27ac": root_dir / "data" / "Mouse_Brain_H3K27ac" / "3d-OT.h5ad",
-        "ATAC": root_dir / "data" / "Mouse_Brain_ATAC" / "3d-OT.h5ad",
-    }
     adata.obs["truth"] = pd.NA
     adata.obs["truth_prefixed"] = pd.NA
 
-    for slice_name, truth_file in truth_sources.items():
+    for slice_name, data_dir in TRUTH_SOURCES.items():
+        truth_file = root_dir / "data" / data_dir / "3d-OT.h5ad"
         if not truth_file.exists():
             continue
         adata_truth = sc.read_h5ad(truth_file, backed="r")
@@ -103,6 +107,99 @@ def _add_truth_labels(adata, root_dir: Path) -> None:
             ]
         finally:
             adata_truth.file.close()
+
+
+def _metric_row_for_labels(slice_name: str, method: str, y_true, y_pred, coords: np.ndarray) -> dict:
+    y_true = pd.Series(y_true).astype(str)
+    y_pred = pd.Series(y_pred).astype(str)
+    coords = np.asarray(coords, dtype=np.float64)
+    return {
+        "slice": slice_name,
+        "method": method,
+        "n_cells": float(coords.shape[0]),
+        "n_valid": float(y_true.shape[0]),
+        "n_truth": float(y_true.nunique()),
+        "n_pred": float(y_pred.nunique()),
+        "ARI": float(adjusted_rand_score(y_true, y_pred)),
+        "Moran_I": float(_moran_i_knn(pd.Categorical(y_pred).codes.astype(np.float64), coords, k=6)),
+    }
+
+
+def _other_methods_by_slice_metrics(
+    adata,
+    root_dir: Path,
+    truth_key: str = "truth",
+    stair_pred_key: str = "Domain",
+) -> pd.DataFrame:
+    rows = []
+    batches = adata.obs["batch"].astype(str)
+    spatial = np.asarray(adata.obsm["spatial"], dtype=np.float64) if "spatial" in adata.obsm else None
+
+    for slice_name, data_dir in TRUTH_SOURCES.items():
+        idx = batches == slice_name
+        if int(idx.sum()) == 0:
+            continue
+
+        idx_pos = np.where(idx.to_numpy())[0]
+        barcodes = adata.obs.loc[idx, "original_barcode"].astype(str)
+        truth_file = root_dir / "data" / data_dir / "3d-OT.h5ad"
+        if not truth_file.exists():
+            continue
+
+        adata_truth = sc.read_h5ad(truth_file, backed="r")
+        try:
+            common_mask = barcodes.isin(adata_truth.obs_names)
+            common_barcodes = barcodes[common_mask].values
+            if len(common_barcodes) == 0 or "truth" not in adata_truth.obs:
+                continue
+
+            coords_common = np.asarray(adata_truth.obsm["spatial"], dtype=np.float64) if "spatial" in adata_truth.obsm else None
+            if coords_common is not None:
+                truth_indexer = adata_truth.obs_names.get_indexer(common_barcodes)
+                coords_common = coords_common[truth_indexer]
+            elif spatial is not None:
+                coords_common = spatial[idx_pos][common_mask.to_numpy()]
+            else:
+                continue
+
+            truth_values = adata_truth.obs.loc[common_barcodes, "truth"]
+            for method in OTHER_METHOD_COLUMNS:
+                if method not in adata_truth.obs:
+                    continue
+                pred_values = adata_truth.obs.loc[common_barcodes, method]
+                valid = ~truth_values.isna() & ~pred_values.isna()
+                if int(valid.sum()) == 0:
+                    continue
+                rows.append(
+                    _metric_row_for_labels(
+                        slice_name=slice_name,
+                        method=method,
+                        y_true=truth_values.loc[valid],
+                        y_pred=pred_values.loc[valid],
+                        coords=coords_common[valid.to_numpy()],
+                    )
+                )
+        finally:
+            adata_truth.file.close()
+
+        if truth_key in adata.obs and stair_pred_key in adata.obs and spatial is not None:
+            truth_values = adata.obs.loc[idx, truth_key]
+            pred_values = adata.obs.loc[idx, stair_pred_key]
+            valid = ~truth_values.isna() & ~pred_values.isna()
+            if int(valid.sum()) > 0:
+                rows.append(
+                    _metric_row_for_labels(
+                        slice_name=slice_name,
+                        method="STAIR_current",
+                        y_true=truth_values.loc[valid],
+                        y_pred=pred_values.loc[valid],
+                        coords=spatial[idx_pos][valid.to_numpy()],
+                    )
+                )
+
+    if not rows:
+        return pd.DataFrame(columns=["slice", "method", "n_cells", "n_valid", "n_truth", "n_pred", "ARI", "Moran_I"])
+    return pd.DataFrame(rows).sort_values(["slice", "method"]).reset_index(drop=True)
 
 
 def _add_ari_row(metrics_rows: list[dict], adata, slice_name: str, truth_key: str = "truth", pred_key: str = "Domain") -> None:
@@ -183,6 +280,7 @@ def _plot_spatial_comparison(adata, result_dir: Path, batch_key: str = "batch", 
     fig, axes = plt.subplots(nrows=len(slices), ncols=2, figsize=(14, 6 * len(slices)))
     axes = np.array(axes).reshape(len(slices), 2)
 
+    spot_size_2d = 100
     for i, slice_id in enumerate(slices):
         adata_sub = adata_plot[adata_plot.obs[batch_key].astype(str) == slice_id].copy()
 
@@ -194,7 +292,8 @@ def _plot_spatial_comparison(adata, result_dir: Path, batch_key: str = "batch", 
             show=False,
             title=f"Slice: {slice_id} | Ground Truth",
             frameon=False,
-            size=60,
+            size=spot_size_2d,
+            linewidths=0,
             legend_fontsize=10,
         )
 
@@ -206,7 +305,8 @@ def _plot_spatial_comparison(adata, result_dir: Path, batch_key: str = "batch", 
             show=False,
             title=f"Slice: {slice_id} | STAIR Domain",
             frameon=False,
-            size=60,
+            size=spot_size_2d,
+            linewidths=0,
             legend_fontsize=10,
         )
 
@@ -224,6 +324,7 @@ def main():
     final_file = result_dir / "adata.h5ad"
     chamfer_file = result_dir / "chamfer_distance.csv"
     metric_file = result_dir / "metrics_summary.csv"
+    other_methods_file = result_dir / "other_methods_by_slice_metrics.csv"
 
     if not processed_file.exists():
         raise FileNotFoundError("h3k27ac_atac_processed.h5ad not found. Run previous steps first.")
@@ -278,14 +379,18 @@ def main():
 
     color_key = "Domain" if "Domain" in adata.obs else "batch"
     spatial_comparison_file = _plot_spatial_comparison(adata, result_dir)
+    other_methods_df = _other_methods_by_slice_metrics(adata, root_dir)
+    other_methods_df.to_csv(other_methods_file, index=False)
 
+    spot_size_3d = 18
     plt.figure(figsize=(5.8, 5.2))
     sc.pl.embedding(
         adata,
         basis="rec_3d_plot",
         projection="3d",
         color=color_key,
-        s=2,
+        s=spot_size_3d,
+        linewidths=0,
         show=False,
         title="Mouse brain H3K27ac-ATAC reconstructed 3D",
     )
@@ -298,7 +403,8 @@ def main():
         basis="gt_3d_order_plot",
         projection="3d",
         color=color_key,
-        s=2,
+        s=spot_size_3d,
+        linewidths=0,
         show=False,
         title="Mouse brain H3K27ac-ATAC reference 3D",
     )
@@ -384,10 +490,37 @@ def main():
             }
         )
 
+    for _, row in other_methods_df.iterrows():
+        extra = (
+            f"method={row['method']};n_valid={int(row['n_valid'])};"
+            f"n_truth={int(row['n_truth'])};n_pred={int(row['n_pred'])}"
+        )
+        metrics_rows.append(
+            {
+                "metric_group": "other_methods",
+                "metric_name": "ARI",
+                "slice": str(row["slice"]),
+                "slice_pair": "H3K27ac|ATAC",
+                "value": float(row["ARI"]),
+                "extra": extra,
+            }
+        )
+        metrics_rows.append(
+            {
+                "metric_group": "other_methods",
+                "metric_name": "Moran's I",
+                "slice": str(row["slice"]),
+                "slice_pair": "H3K27ac|ATAC",
+                "value": float(row["Moran_I"]),
+                "extra": extra,
+            }
+        )
+
     pd.DataFrame(metrics_rows).to_csv(metric_file, index=False)
     adata.write(final_file)
 
     print(f"Saved Chamfer distances to: {chamfer_file}")
+    print(f"Saved other-method metrics to: {other_methods_file}")
     print(f"Saved metrics summary to: {metric_file}")
     print(f"Saved final AnnData to: {final_file}")
     if spatial_comparison_file is not None:

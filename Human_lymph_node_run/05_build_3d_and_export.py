@@ -9,7 +9,14 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from scipy import sparse
-from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, normalized_mutual_info_score
+from sklearn.metrics import (
+    adjusted_mutual_info_score,
+    adjusted_rand_score,
+    homogeneity_score,
+    mutual_info_score,
+    normalized_mutual_info_score,
+    v_measure_score,
+)
 from sklearn.neighbors import NearestNeighbors
 
 
@@ -299,6 +306,9 @@ def _clustering_score_rows(adata, truth_key: str = "final_annot", pred_key: str 
         ("ari", adjusted_rand_score),
         ("nmi", normalized_mutual_info_score),
         ("ami", adjusted_mutual_info_score),
+        ("homogeneity", homogeneity_score),
+        ("mutual_info", mutual_info_score),
+        ("v_measure", v_measure_score),
     ]
 
     valid_mask = ~adata.obs[truth_key].isna() & ~adata.obs[pred_key].isna()

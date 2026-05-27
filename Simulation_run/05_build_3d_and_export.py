@@ -527,13 +527,16 @@ def main():
     adata.obsm["gt_3d_order_plot"] = np.column_stack([xy_input_plot[:, 0], xy_input_plot[:, 1], -z_rec])
 
     color_key = "Domain" if "Domain" in adata.obs else "batch"
+    spot_size_3d = 18
+    spot_size_2d = 260
     plt.figure(figsize=(5.8, 5.2))
     sc.pl.embedding(
         adata,
         basis="rec_3d_plot",
         projection="3d",
         color=color_key,
-        s=2,
+        s=spot_size_3d,
+        linewidths=0,
         show=False,
         title="Simulation reconstructed 3D",
     )
@@ -546,7 +549,8 @@ def main():
         basis="gt_3d_order_plot",
         projection="3d",
         color=color_key,
-        s=2,
+        s=spot_size_3d,
+        linewidths=0,
         show=False,
         title="Simulation reference 3D (x,y,z_rec)",
     )
@@ -584,7 +588,8 @@ def main():
                         title=str(batch_name),
                         frameon=False,
                         legend_loc="right margin" if show_legend else None,
-                        s=100,
+                        s=spot_size_2d,
+                        linewidths=0,
                         show=False,
                         ax=ax,
                     )

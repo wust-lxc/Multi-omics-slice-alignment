@@ -135,6 +135,7 @@ def _add_scaled_rep(adata, source_key: str, target_key: str):
 def main():
     set_seed(42)
 
+    # Best Simulation tuning result: gamma_0.70, ARI=0.9901795047.
     hvg_top = 1000
     ae_epoch = 150
     ae_batch_size = 256
@@ -148,10 +149,13 @@ def main():
     c_neigh_het = 0.50
     n_neigh_hom = 10
     n_neigh_het = 30
+    gamma = 0.70
+    dropout_hom = 0.25
+    dropout_het = 0.25
     mini_batch = False
 
     cluster_num = 5
-    mclust_source_key = "STAIR"
+    mclust_source_key = "STAIR_bc"
     mclust_rep_key = "STAIR_mclust_scaled"
     mclust_model_name = "EEE"
 
@@ -215,12 +219,12 @@ def main():
     )
 
     emb_align.train_hgat(
-        gamma=0.80,
+        gamma=gamma,
         mini_batch=mini_batch,
         epoch_hgat=hgat_epoch,
         batches=hgat_batches,
-        dropout_hom=0.25,
-        dropout_het=0.25,
+        dropout_hom=dropout_hom,
+        dropout_het=dropout_het,
     )
 
     adata, attention = emb_align.predict_hgat(mini_batch=mini_batch, batches=hgat_batches)

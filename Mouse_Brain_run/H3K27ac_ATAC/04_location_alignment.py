@@ -15,6 +15,7 @@ from STAIR.loc_alignment import Loc_Align
 
 def main():
     init_num_mnn = 10
+    detect_num_domains = 3
     detect_alpha = 45
     fine_max_iterations = 160
     fine_tolerance = 1e-10
@@ -73,7 +74,8 @@ def main():
     loc_align.detect_fine_points(
         domain_key="Domain",
         slice_boundary=True,
-        domain_boundary=False,
+        domain_boundary=True,
+        num_domains=detect_num_domains,
         alpha=detect_alpha,
         return_result=False,
     )
