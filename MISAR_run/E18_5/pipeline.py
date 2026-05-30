@@ -19,6 +19,7 @@ from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
+from STAIR.data_paths import resolve_data_root
 from STAIR.loc_alignment import Loc_Align
 from STAIR.multi_emb_alignment import Multi_Emb_Align
 from STAIR.utils import cluster_func, set_seed
@@ -217,8 +218,9 @@ def _joint_peak_bin_lsi(
 
 def _common_genes() -> list[str]:
     gene_sets = []
+    data_root = resolve_data_root(repo_root()) / "MISAR"
     for slice_name in SLICE_NAMES:
-        rna_file = repo_root() / "data" / "MISAR" / slice_name / "adata_RNA.h5ad"
+        rna_file = data_root / slice_name / "adata_RNA.h5ad"
         if not rna_file.exists():
             raise FileNotFoundError(f"Missing RNA file: {rna_file}")
         adata_rna = sc.read_h5ad(rna_file)
@@ -234,7 +236,7 @@ def prepare_data() -> None:
     configure_runtime_threads()
     set_seed(42)
 
-    data_root = repo_root() / "data" / "MISAR"
+    data_root = resolve_data_root(repo_root()) / "MISAR"
     out_dir = result_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
 

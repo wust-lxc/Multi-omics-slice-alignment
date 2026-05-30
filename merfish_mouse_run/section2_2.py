@@ -9,6 +9,7 @@ from matplotlib.pyplot import rc_context
 import scanpy as sc
 import pandas as pd
 import numpy as np
+from STAIR.data_paths import resolve_data_root
 from STAIR.emb_alignment import Emb_Align
 from STAIR.utils import *
 set_seed(42)
@@ -31,7 +32,7 @@ processed_file_path = os.path.join(result_path, 'hypothalamic_preoptic_processed
 
 # 加载原始数据
 print("Loading original data...")
-adata = sc.read('./data/hypothalamic_preoptic.h5ad')
+adata = sc.read(resolve_data_root() / 'hypothalamic_preoptic.h5ad')
 
 # 定义切片顺序
 keys_use = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11']

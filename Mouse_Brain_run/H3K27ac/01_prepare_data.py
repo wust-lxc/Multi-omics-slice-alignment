@@ -8,6 +8,7 @@ import pandas as pd
 import scanpy as sc
 from scipy import sparse
 
+from STAIR.data_paths import resolve_data_root
 from STAIR.utils import set_seed
 
 
@@ -33,7 +34,7 @@ def main():
     set_seed(42)
 
     root_dir = Path(__file__).resolve().parents[2]
-    data_dir = root_dir / "data" / "Mouse_Brain_H3K27ac"
+    data_dir = resolve_data_root(root_dir) / "Mouse_Brain_H3K27ac"
     result_dir = root_dir / "Mouse_brain_result" / "H3K27ac"
     result_dir.mkdir(parents=True, exist_ok=True)
 

@@ -12,6 +12,8 @@ import scanpy as sc
 from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
 
+from STAIR.data_paths import resolve_data_root
+
 
 TRUTH_SOURCES = {
     "H3K27ac": "Mouse_Brain_H3K27ac",
@@ -85,9 +87,10 @@ def _moran_i_knn(values: np.ndarray, coords: np.ndarray, k: int = 6) -> float:
 def _add_truth_labels(adata, root_dir: Path) -> None:
     adata.obs["truth"] = pd.NA
     adata.obs["truth_prefixed"] = pd.NA
+    data_root = resolve_data_root(root_dir)
 
     for slice_name, data_dir in TRUTH_SOURCES.items():
-        truth_file = root_dir / "data" / data_dir / "3d-OT.h5ad"
+        truth_file = data_root / data_dir / "3d-OT.h5ad"
         if not truth_file.exists():
             continue
         adata_truth = sc.read_h5ad(truth_file, backed="r")
@@ -134,6 +137,7 @@ def _other_methods_by_slice_metrics(
     rows = []
     batches = adata.obs["batch"].astype(str)
     spatial = np.asarray(adata.obsm["spatial"], dtype=np.float64) if "spatial" in adata.obsm else None
+    data_root = resolve_data_root(root_dir)
 
     for slice_name, data_dir in TRUTH_SOURCES.items():
         idx = batches == slice_name
@@ -142,7 +146,7 @@ def _other_methods_by_slice_metrics(
 
         idx_pos = np.where(idx.to_numpy())[0]
         barcodes = adata.obs.loc[idx, "original_barcode"].astype(str)
-        truth_file = root_dir / "data" / data_dir / "3d-OT.h5ad"
+        truth_file = data_root / data_dir / "3d-OT.h5ad"
         if not truth_file.exists():
             continue
 

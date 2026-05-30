@@ -14,6 +14,7 @@ from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import r2_score
 
 # 导入 STAIR 工具
+from STAIR.data_paths import resolve_data_root
 from STAIR.loc_prediction import sort_slices
 
 # ==============================================================================
@@ -26,7 +27,7 @@ if not os.path.exists(result_path):
 
 # 定义文件路径
 processed_file_path = os.path.join(result_path, 'hypothalamic_preoptic_processed.h5ad')
-original_file_path = './data/hypothalamic_preoptic.h5ad'
+original_file_path = resolve_data_root() / 'hypothalamic_preoptic.h5ad'
 atte_path = os.path.join(result_path, 'embedding', 'attention.csv')
 
 # 1. 优先加载处理过的数据 (来自 section 2.2)

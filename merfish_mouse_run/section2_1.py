@@ -13,6 +13,7 @@ import scanpy as sc
 import matplotlib.pyplot as plt
 
 from STAIR.emb_alignment import Emb_Align
+from STAIR.data_paths import resolve_data_root
 from STAIR.utils import *
 
 # ==============================================================================
@@ -27,7 +28,7 @@ if not os.path.exists(output_dir):
 # 1. 加载数据
 # ==============================================================================
 print("Loading data...")
-adata = sc.read('./data/hypothalamic_preoptic.h5ad')
+adata = sc.read(resolve_data_root() / 'hypothalamic_preoptic.h5ad')
 
 # ==============================================================================
 # 2. 保存 3D Ground Truth 图片

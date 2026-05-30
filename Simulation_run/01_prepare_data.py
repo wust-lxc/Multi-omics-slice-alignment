@@ -9,6 +9,7 @@ import pandas as pd
 import scanpy as sc
 from scipy import sparse
 
+from STAIR.data_paths import resolve_data_root
 from STAIR.utils import set_seed
 
 
@@ -70,7 +71,7 @@ def main():
     set_seed(42)
 
     root_dir = Path(__file__).resolve().parent.parent
-    data_dir = root_dir / "data"
+    data_dir = resolve_data_root(root_dir)
     result_dir = root_dir / "Simulation_result"
     result_dir.mkdir(parents=True, exist_ok=True)
 

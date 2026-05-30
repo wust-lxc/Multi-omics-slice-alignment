@@ -9,6 +9,7 @@ import scanpy as sc
 import anndata as ad
 from scipy import sparse
 
+from STAIR.data_paths import resolve_data_root
 from STAIR.utils import set_seed
 
 
@@ -33,7 +34,7 @@ def main():
     set_seed(42)
 
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_dir = os.path.join(root_dir, "data", "Human_lymph_node")
+    data_dir = os.path.join(resolve_data_root(root_dir), "Human_lymph_node")
     result_dir = os.path.join(root_dir, "Human_lymph_node_result")
     os.makedirs(result_dir, exist_ok=True)
 
