@@ -1,7 +1,23 @@
 import warnings
 warnings.filterwarnings("ignore")
 
+import os
+import sys
 from pathlib import Path
+
+
+def _configure_thread_env() -> None:
+    for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        value = os.environ.get(key, "").strip()
+        if not value.isdigit() or int(value) < 1:
+            os.environ[key] = "1"
+
+
+_configure_thread_env()
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import anndata as ad
 import numpy as np
@@ -70,9 +86,8 @@ def _merge_truth_columns(adata_rna, truth_path: Path, common_obs) -> None:
 def main():
     set_seed(42)
 
-    root_dir = Path(__file__).resolve().parent.parent
-    data_dir = resolve_data_root(root_dir)
-    result_dir = root_dir / "Simulation_result"
+    data_dir = resolve_data_root(ROOT_DIR)
+    result_dir = ROOT_DIR / "Simulation_result"
     result_dir.mkdir(parents=True, exist_ok=True)
 
     common_genes = _read_common_genes(data_dir)
