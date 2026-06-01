@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env STAIR-env
 import os
 import subprocess
 import sys
