@@ -12,7 +12,7 @@ import scanpy as sc
 from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
 
-from STAIR.data_paths import resolve_data_root
+from hypermoa.data_paths import resolve_data_root
 
 
 TRUTH_SOURCES = {
@@ -194,7 +194,7 @@ def _other_methods_by_slice_metrics(
                 rows.append(
                     _metric_row_for_labels(
                         slice_name=slice_name,
-                        method="STAIR_current",
+                        method="HyperMOA_current",
                         y_true=truth_values.loc[valid],
                         y_pred=pred_values.loc[valid],
                         coords=spatial[idx_pos][valid.to_numpy()],
@@ -307,7 +307,7 @@ def _plot_spatial_comparison(adata, result_dir: Path, batch_key: str = "batch", 
             color=pred_key,
             ax=axes[i, 1],
             show=False,
-            title=f"Slice: {slice_id} | STAIR Domain",
+            title=f"Slice: {slice_id} | HyperMOA Domain",
             frameon=False,
             size=spot_size_2d,
             linewidths=0,

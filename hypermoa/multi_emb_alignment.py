@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 import scanpy as sc
 
 # 继承你原有的对齐主类
-from STAIR.emb_alignment import Emb_Align
-from STAIR.embedding.loss import nll_loss
+from hypermoa.emb_alignment import Emb_Align
+from hypermoa.embedding.loss import nll_loss
 
 # 引入我们新建的多组学组件
-from STAIR.embedding.multi_module_ae import MultiOmics_ZINB_AE
-from STAIR.embedding.multi_dataset_ae import MultiOmicsDataset
+from hypermoa.embedding.multi_module_ae import MultiOmics_ZINB_AE
+from hypermoa.embedding.multi_dataset_ae import MultiOmicsDataset
 
 class Multi_Emb_Align(Emb_Align):
     def __init__(self, adata, batch_key=None, hvg=False, n_hidden=128, n_latent=32, 
@@ -291,7 +291,7 @@ class Multi_Emb_Align(Emb_Align):
         if return_data:
             return self.adata
 
-    def batch_center_obsm(self, source_key='STAIR', target_key=None, batch_key=None):
+    def batch_center_obsm(self, source_key='HyperMOA', target_key=None, batch_key=None):
         if batch_key is None:
             batch_key = self.batch_key
         if target_key is None:

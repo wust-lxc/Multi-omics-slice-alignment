@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from STAIR.loc_alignment import Loc_Align
+from hypermoa.loc_alignment import Loc_Align
 
 
 def _remove_if_exists(path: str) -> None:
@@ -32,9 +32,24 @@ def main():
         raise FileNotFoundError("predicted_slice_order.csv not found. Run 03_slice_order_and_z_reconstruction.py first.")
 
     adata = sc.read_h5ad(processed_file)
-    if "STAIR" not in adata.obsm:
-        raise KeyError("STAIR embedding not found. Run 02_embedding_alignment.py first.")
-    emb_key = "STAIR_bc" if "STAIR_bc" in adata.obsm else "STAIR"
+    uns_keep = {
+        key: adata.uns[key]
+        for key in [
+            "cluster_method",
+            "domain_refinement",
+            "mclust_rep_key",
+            "mclust_source_key",
+            "mclust_pca_components",
+            "mclust_model_name",
+        ]
+        if key in adata.uns
+    }
+    if "HyperMOA" not in adata.obsm:
+        raise KeyError("HyperMOA embedding not found. Run 02_embedding_alignment.py first.")
+    if "HyperMOA_bc" in adata.obsm:
+        emb_key = "HyperMOA_bc"
+    else:
+        emb_key = "HyperMOA"
 
     if "Domain" not in adata.obs:
         adata.obs["Domain"] = adata.obs["batch"].astype(str)
@@ -69,6 +84,7 @@ def main():
     loc_align.plot_edge(spatial_key="transform_init", figsize=(6, 6), s=1.5)
 
     adata = loc_align.fine_align(max_iterations=160, tolerance=1e-10)
+    adata.uns.update(uns_keep)
 
     plt.figure(figsize=(6.8, 5.6))
     sc.pl.embedding(

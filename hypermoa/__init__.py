@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-# Author: Yuanyuan Yu
+# Project: HyperMOA
 # File Name: __init__.py
 # Description:
 """
 
-__author__ = "Yuanyuan Yu"
+__author__ = "HyperMOA contributors"

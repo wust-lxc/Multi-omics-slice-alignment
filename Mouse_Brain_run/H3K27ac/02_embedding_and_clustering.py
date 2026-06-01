@@ -15,10 +15,10 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
-from STAIR.embedding.dataset_hgat import calcu_adaptive_hyperedge
-from STAIR.embedding.module_hgat import HyperGAT_pyg
-from STAIR.multi_emb_alignment import Multi_Emb_Align
-from STAIR.utils import cluster_func, set_seed
+from hypermoa.embedding.dataset_hgat import calcu_adaptive_hyperedge
+from hypermoa.embedding.module_hgat import HyperGAT_pyg
+from hypermoa.multi_emb_alignment import Multi_Emb_Align
+from hypermoa.utils import cluster_func, set_seed
 
 
 def _add_scaled_pca_rep(adata, source_key: str, target_key: str, n_components: int, random_state: int = 2022):
@@ -38,7 +38,7 @@ def _add_scaled_pca_rep(adata, source_key: str, target_key: str, n_components: i
 def _train_single_slice_hypergat(
     adata,
     source_key: str = "latent",
-    target_key: str = "STAIR_spatial",
+    target_key: str = "HyperMOA_spatial",
     spatial_key: str = "spatial",
     n_neigh: int = 12,
     sim_threshold: float = 0.20,
@@ -97,7 +97,7 @@ def _train_single_slice_hypergat(
 def main():
     set_seed(42)
 
-    hvg_top = int(os.environ.get("STAIR_H3K27AC_HVG_TOP", "3000"))
+    hvg_top = int(os.environ.get("HYPERMOA_H3K27AC_HVG_TOP", "3000"))
     ae_epoch = 120
     ae_batch_size = 256
     loss_weight_rna = 1.0
@@ -109,8 +109,8 @@ def main():
     hypergat_residual_weight = 0.65
 
     cluster_num = 18
-    mclust_source_key = "STAIR_spatial"
-    mclust_rep_key = "STAIR_mclust"
+    mclust_source_key = "HyperMOA_spatial"
+    mclust_rep_key = "HyperMOA_mclust"
     mclust_pca_components = 8
     mclust_model_name = "EVE"
 
@@ -147,18 +147,18 @@ def main():
         atac_loss=epi_loss,
     )
     adata = emb_align.latent(return_data=True)
-    adata.obsm["STAIR_ae"] = adata.obsm["latent"].copy()
+    adata.obsm["HyperMOA_ae"] = adata.obsm["latent"].copy()
     _train_single_slice_hypergat(
         adata,
         source_key="latent",
-        target_key="STAIR_spatial",
+        target_key="HyperMOA_spatial",
         spatial_key="spatial",
         n_neigh=hypergat_n_neigh,
         sim_threshold=hypergat_sim_threshold,
         epoch=hypergat_epoch,
         residual_weight=hypergat_residual_weight,
     )
-    adata.obsm["STAIR"] = adata.obsm["STAIR_spatial"].copy()
+    adata.obsm["HyperMOA"] = adata.obsm["HyperMOA_spatial"].copy()
 
     adata = _add_scaled_pca_rep(
         adata,
@@ -173,9 +173,9 @@ def main():
         use_rep=mclust_rep_key,
         cluster_num=cluster_num,
         modelNames=mclust_model_name,
-        key_add="STAIR",
+        key_add="HyperMOA",
     )
-    adata.obs["Domain_mclust_global"] = adata.obs["STAIR"].astype(str)
+    adata.obs["Domain_mclust_global"] = adata.obs["HyperMOA"].astype(str)
     adata.obs["Domain"] = adata.obs["Domain_mclust_global"].astype(str)
     domain_refinement = f"none_pure_global_mclust_g{cluster_num}_{mclust_rep_key}"
     adata.obs["cluster_method"] = "mclust"
@@ -191,7 +191,7 @@ def main():
     adata.uns["h3k27ac_loss_weight"] = float(loss_weight_epi)
     adata.uns["h3k27ac_feature_transform"] = str(adata.uns.get("EPI_transform", "positive_99pct"))
 
-    sc.pp.neighbors(adata, use_rep="STAIR")
+    sc.pp.neighbors(adata, use_rep="HyperMOA")
     sc.tl.umap(adata, min_dist=0.2)
 
     adata.write(processed_file)

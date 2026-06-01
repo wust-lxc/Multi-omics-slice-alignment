@@ -3,10 +3,12 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import silhouette_score, pairwise_distances
 from sklearn.neighbors import NearestNeighbors
+from pathlib import Path
 
 # === 配置路径 ===
-file_path_1 = "/root/autodl-tmp/STAIR-main/merfish_mouse_result/hypothalamic_preoptic_processed.h5ad" # Method 1 (Hypergraph)
-file_path_2 = "/root/autodl-tmp/STAIR-main/merfish_mouse_result/baseline_processed.h5ad" # Method 2 (Baseline)
+result_dir = Path(__file__).resolve().parent.parent / "merfish_mouse_result"
+file_path_1 = result_dir / "hypothalamic_preoptic_processed.h5ad" # Method 1 (Hypergraph)
+file_path_2 = result_dir / "baseline_processed.h5ad" # Method 2 (Baseline)
 cluster_key = "Domain" # 聚类列名
 
 # === 定义计算函数 ===

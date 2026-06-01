@@ -12,9 +12,9 @@ import anndata as ad
 import scanpy as sc
 import matplotlib.pyplot as plt
 
-from STAIR.emb_alignment import Emb_Align
-from STAIR.data_paths import resolve_data_root
-from STAIR.utils import *
+from hypermoa.emb_alignment import Emb_Align
+from hypermoa.data_paths import resolve_data_root
+from hypermoa.utils import *
 
 # ==============================================================================
 # 0. 准备输出目录

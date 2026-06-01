@@ -4,10 +4,10 @@ import scanpy as sc
 import matplotlib.pyplot as plt 
 from sklearn.neighbors import NearestNeighbors
 
-from STAIR.location.transformation import best_fit_transform, transform
-from STAIR.location.edge_detection import alpha_shape
-from STAIR.location.align_fine import fine_alignment
-from STAIR.utils import MakeLogClass
+from hypermoa.location.transformation import best_fit_transform, transform
+from hypermoa.location.edge_detection import alpha_shape
+from hypermoa.location.align_fine import fine_alignment
+from hypermoa.utils import MakeLogClass
 
 
 def sort_slices(atte, start=None, return_tree=False):
@@ -105,7 +105,7 @@ def loc_predict_z(adata,
 
 def init_align_with_scale(  adata_ref,
                             adata_query, 
-                            emb_key = 'STAIR',
+                            emb_key = 'HyperMOA',
                             num_mnn = 1,
                             spatial_key1 = 'spatial',
                             spatial_key2 = None,
@@ -356,7 +356,6 @@ class Loc_Pred(object):
             self.makeLog(f"  Alpha of edge detection in reference: {alpha_ref}")
 
         return adata_query
-
 
 
 

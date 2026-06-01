@@ -17,8 +17,8 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 
-from STAIR.multi_emb_alignment import Multi_Emb_Align
-from STAIR.utils import cluster_func, set_seed
+from hypermoa.multi_emb_alignment import Multi_Emb_Align
+from hypermoa.utils import cluster_func, set_seed
 
 
 def _moran_i_knn(values: np.ndarray, coords: np.ndarray, k: int = 10) -> float:
@@ -155,8 +155,8 @@ def main():
     mini_batch = False
 
     cluster_num = 5
-    mclust_source_key = "STAIR_bc"
-    mclust_rep_key = "STAIR_mclust_scaled"
+    mclust_source_key = "HyperMOA_bc"
+    mclust_rep_key = "HyperMOA_mclust_scaled"
     mclust_model_name = "EEE"
 
     root_dir = Path(__file__).resolve().parent.parent
@@ -231,7 +231,7 @@ def main():
     attention_file = embedding_dir / "attention.csv"
     attention.to_csv(attention_file)
 
-    emb_align.batch_center_obsm(source_key="STAIR", target_key="STAIR_bc", batch_key="batch")
+    emb_align.batch_center_obsm(source_key="HyperMOA", target_key="HyperMOA_bc", batch_key="batch")
     adata = emb_align.adata
     adata = _add_scaled_rep(
         adata,
@@ -245,11 +245,11 @@ def main():
         use_rep=mclust_rep_key,
         cluster_num=cluster_num,
         modelNames=mclust_model_name,
-        key_add="STAIR",
+        key_add="HyperMOA",
     )
     cluster_method = "mclust"
 
-    adata.obs["Domain_mclust_global"] = adata.obs["STAIR"].astype(str)
+    adata.obs["Domain_mclust_global"] = adata.obs["HyperMOA"].astype(str)
     adata.obs["Domain"] = adata.obs["Domain_mclust_global"].astype(str)
     adata.uns["cluster_method"] = cluster_method
     adata.uns["mclust_rep_key"] = mclust_rep_key
@@ -271,7 +271,7 @@ def main():
 
     diagnostics = _embedding_diagnostics(
         adata,
-        rep_keys=["latent", "latent_bc", "STAIR", "STAIR_bc", "STAIR_mclust_scaled"],
+        rep_keys=["latent", "latent_bc", "HyperMOA", "HyperMOA_bc", "HyperMOA_mclust_scaled"],
         batch_key="batch",
         truth_key="ground_truth",
         pred_key="Domain",
@@ -279,7 +279,7 @@ def main():
     diagnostics_file = embedding_dir / "embedding_diagnostics.csv"
     diagnostics.to_csv(diagnostics_file, index=False)
 
-    sc.pp.neighbors(adata, use_rep="STAIR_bc")
+    sc.pp.neighbors(adata, use_rep="HyperMOA_bc")
     sc.tl.umap(adata, min_dist=0.2)
 
     adata.write(processed_file)

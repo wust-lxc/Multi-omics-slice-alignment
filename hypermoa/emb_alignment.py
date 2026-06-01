@@ -8,12 +8,12 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from torch_geometric.loader import NeighborLoader, LinkNeighborLoader, HGTLoader
-from STAIR.embedding.module_ae import ae_dict
-from STAIR.embedding.module_hgat import HGAT
-from STAIR.embedding.dataset_ae import MyDataset
-from STAIR.embedding.dataset_hgat import hgat_data
-from STAIR.embedding.loss import nll_loss
-from STAIR.utils import *
+from hypermoa.embedding.module_ae import ae_dict
+from hypermoa.embedding.module_hgat import HGAT
+from hypermoa.embedding.dataset_ae import MyDataset
+from hypermoa.embedding.dataset_hgat import hgat_data
+from hypermoa.embedding.loss import nll_loss
+from hypermoa.utils import *
 
 class Emb_Align(object):
 
@@ -475,7 +475,8 @@ class Emb_Align(object):
                 out.append(pd.DataFrame(values.detach().cpu().numpy()[:len(self.index_dict[ii]),:], index=self.index_dict[ii]))
 
             out = pd.concat(out)
-            self.adata.obsm['STAIR'] = out.loc[self.adata.obs_names].values
+            rep = out.loc[self.adata.obs_names].values
+            self.adata.obsm['HyperMOA'] = rep
             return self.adata, attes
 
 
@@ -507,7 +508,8 @@ class Emb_Align(object):
                                 index=self.index_dict[ii]) for ii, values in out.items()]
             
             out = pd.concat(out)
-            self.adata.obsm['STAIR'] = out.loc[self.adata.obs_names].values
+            rep = out.loc[self.adata.obs_names].values
+            self.adata.obsm['HyperMOA'] = rep
 
             i = 0
             atte_ = []

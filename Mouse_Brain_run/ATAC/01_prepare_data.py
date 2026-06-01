@@ -8,8 +8,8 @@ import pandas as pd
 import scanpy as sc
 from scipy import sparse
 
-from STAIR.data_paths import resolve_data_root
-from STAIR.utils import set_seed
+from hypermoa.data_paths import resolve_data_root
+from hypermoa.utils import set_seed
 
 
 def _to_dense(x):

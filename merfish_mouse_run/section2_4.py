@@ -12,10 +12,10 @@ import numpy as np
 import scanpy as sc
 import math
 
-# 导入 STAIR 模块
-from STAIR.emb_alignment import Emb_Align
-from STAIR.loc_alignment import Loc_Align
-from STAIR.location.transformation import best_fit_transform
+# 导入 HyperMOA 模块
+from hypermoa.emb_alignment import Emb_Align
+from hypermoa.loc_alignment import Loc_Align
+from hypermoa.location.transformation import best_fit_transform
 
 # ==============================================================================
 # 0. 环境与数据加载
@@ -38,8 +38,8 @@ else:
     raise FileNotFoundError(f"Processed file not found at {processed_file_path}. Please run section2_2.py and section2_3.py first.")
 
 # 检查必要信息是否存在
-if 'STAIR' not in adata.obsm:
-    raise KeyError("'STAIR' embeddings not found in data. Please check section2_2.py execution.")
+if 'HyperMOA' not in adata.obsm:
+    raise KeyError("'HyperMOA' embeddings not found in data. Please check section2_2.py execution.")
 if 'z_rec' not in adata.obs:
     print("Warning: 'z_rec' not found. Alignment order might be suboptimal.")
 
@@ -72,7 +72,7 @@ input_spatial_key = 'spatial_2d_μm_rotate' if 'spatial_2d_μm_rotate' in adata.
 print(f"Using '{input_spatial_key}' as input spatial coordinates.")
 
 loc_align.init_align(
-    emb_key='STAIR', 
+    emb_key='HyperMOA',
     spatial_key=input_spatial_key,
     num_mnn=1
 )
@@ -229,9 +229,9 @@ if gt_key in adata.obsm:
         error_fine = pd.DataFrame(trans_fines, index=eval_slices, columns=['trans_x', 'trans_y'])
         
         error_init['Angle'] = angle_inits
-        error_init['Method'] = 'STAIR_init'
+        error_init['Method'] = 'HyperMOA_init'
         error_fine['Angle'] = angle_fines
-        error_fine['Method'] = 'STAIR_fine'
+        error_fine['Method'] = 'HyperMOA_fine'
         
         error = pd.concat([error_init, error_fine])
         

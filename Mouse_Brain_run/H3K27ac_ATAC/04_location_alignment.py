@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from STAIR.loc_alignment import Loc_Align
+from hypermoa.loc_alignment import Loc_Align
 
 
 def main():
@@ -30,9 +30,14 @@ def main():
         raise FileNotFoundError("h3k27ac_atac_processed.h5ad not found. Run 03_slice_order_and_z_reconstruction.py first.")
 
     adata = sc.read_h5ad(processed_file)
-    emb_key = "STAIR_bc" if "STAIR_bc" in adata.obsm else "STAIR"
+    if "HyperMOA_bc" in adata.obsm:
+        emb_key = "HyperMOA_bc"
+    elif "HyperMOA" in adata.obsm:
+        emb_key = "HyperMOA"
+    else:
+        emb_key = "HyperMOA"
     if emb_key not in adata.obsm:
-        raise KeyError("STAIR embedding not found. Run 02_embedding_alignment.py first.")
+        raise KeyError("HyperMOA embedding not found. Run 02_embedding_alignment.py first.")
 
     if "Domain" not in adata.obs:
         adata.obs["Domain"] = adata.obs["batch"].astype(str)

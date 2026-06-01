@@ -3,10 +3,10 @@ import numpy as np
 import anndata as ad
 import matplotlib.pyplot as plt
 
-from STAIR.location.align_init import initial_alignment
-from STAIR.location.align_fine import fine_alignment
-from STAIR.location.edge_detection import alpha_shape, calcu_lisi, select_clustered_domains, detect_edge_of_domains
-from STAIR.utils import MakeLogClass
+from hypermoa.location.align_init import initial_alignment
+from hypermoa.location.align_fine import fine_alignment
+from hypermoa.location.edge_detection import alpha_shape, calcu_lisi, select_clustered_domains, detect_edge_of_domains
+from hypermoa.utils import MakeLogClass
 
 
 class Loc_Align(object):

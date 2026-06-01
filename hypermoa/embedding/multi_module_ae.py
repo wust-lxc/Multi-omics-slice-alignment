@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # 直接引入你原有的全连接层组件，不破坏原有文件
-from STAIR.embedding.module_ae import FC_Layer
+from hypermoa.embedding.module_ae import FC_Layer
 
 class MultiOmics_ZINB_AE(nn.Module):
     def __init__(

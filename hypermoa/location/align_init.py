@@ -9,7 +9,7 @@ def align_init_pair(adata1,
                     spatial_key1,
                     spatial_key2 = None,
                     num_mnn = 1,
-                    emb_key = 'STAIR',
+                    emb_key = 'HyperMOA',
                     key_added = 'transform_init',
                     use_scale = False
                     ):
@@ -321,7 +321,6 @@ def initial_alignment(  adatas,
 #             for T_ in T_tmp:
 #                 adatas[i].obsm[key_added] = transform(adatas[i].obsm[key_added], T_)
 #     return adatas, Ts_init
-
 
 
 

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from STAIR.loc_prediction import sort_slices
+from hypermoa.loc_prediction import sort_slices
 
 
 def main():

@@ -2,22 +2,22 @@ import scanpy as sc
 import pandas as pd
 import numpy as np
 from sklearn.metrics import adjusted_rand_score
+from pathlib import Path
 
 # === 配置 ===
 # Baseline 文件路径
-baseline_path = "/root/autodl-tmp/STAIR-main/merfish_mouse_result/baseline_processed.h5ad"
+baseline_path = Path(__file__).resolve().parent.parent / "merfish_mouse_result" / "baseline_processed.h5ad"
 
 # Method 1 (超图) 的成绩 (来自你刚才的运行结果)
 score_method_1 = 0.3645 
 
-print(f"=== 正在评估 Baseline (原版 STAIR) ===")
+print("=== 正在评估 Baseline ===")
 try:
     adata = sc.read_h5ad(baseline_path)
     print(f"成功读取文件: {baseline_path}")
     
     # 1. 寻找嵌入 Key
-    # 优先找 'STAIR', 找不到就用第一个
-    emb_key = 'STAIR' if 'STAIR' in adata.obsm.keys() else list(adata.obsm.keys())[0]
+    emb_key = 'HyperMOA' if 'HyperMOA' in adata.obsm.keys() else list(adata.obsm.keys())[0]
     print(f"使用嵌入 Key: {emb_key}")
     
     # 2. 重新聚类 (Re-clustering)

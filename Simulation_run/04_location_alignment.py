@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
-from STAIR.loc_alignment import Loc_Align
+from hypermoa.loc_alignment import Loc_Align
 
 
 def _configure_r_env() -> None:
@@ -58,10 +58,13 @@ def main():
         raise FileNotFoundError("predicted_slice_order.csv not found. Run 03_slice_order_and_z_reconstruction.py first.")
 
     adata = sc.read_h5ad(processed_file)
-    if "STAIR" not in adata.obsm:
-        raise KeyError("STAIR embedding not found. Run 02_embedding_alignment.py first.")
+    if "HyperMOA" not in adata.obsm:
+        raise KeyError("HyperMOA embedding not found. Run 02_embedding_alignment.py first.")
 
-    emb_key = "STAIR_bc" if "STAIR_bc" in adata.obsm else "STAIR"
+    if "HyperMOA_bc" in adata.obsm:
+        emb_key = "HyperMOA_bc"
+    else:
+        emb_key = "HyperMOA"
     if "Domain" not in adata.obs:
         adata.obs["Domain"] = adata.obs["batch"].astype(str)
 

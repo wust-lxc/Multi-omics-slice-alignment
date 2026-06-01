@@ -16,8 +16,8 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 
-from STAIR.multi_emb_alignment import Multi_Emb_Align
-from STAIR.utils import set_seed, cluster_func
+from hypermoa.multi_emb_alignment import Multi_Emb_Align
+from hypermoa.utils import set_seed, cluster_func
 
 
 def _moran_i_knn(values: np.ndarray, coords: np.ndarray, k: int = 10) -> float:
@@ -154,8 +154,8 @@ def main():
     mini_batch = False
 
     cluster_num = 10
-    mclust_source_key = "STAIR"
-    mclust_rep_key = "STAIR_mclust"
+    mclust_source_key = "HyperMOA"
+    mclust_rep_key = "HyperMOA_mclust"
     # PCA components used as the mclust input dimension; this is not the
     # number of mclust clusters. cluster_num above controls G.
     mclust_pca_components = 2
@@ -248,7 +248,7 @@ def main():
     attention_file = os.path.join(embedding_dir, "attention.csv")
     attention.to_csv(attention_file)
 
-    emb_align.batch_center_obsm(source_key="STAIR", target_key="STAIR_bc", batch_key="batch")
+    emb_align.batch_center_obsm(source_key="HyperMOA", target_key="HyperMOA_bc", batch_key="batch")
     adata = emb_align.adata
     adata = _add_scaled_pca_rep(
         adata,
@@ -264,11 +264,11 @@ def main():
         use_rep=mclust_rep_key,
         cluster_num=cluster_num,
         modelNames=mclust_model_name,
-        key_add="STAIR",
+        key_add="HyperMOA",
     )
     cluster_method = "mclust"
 
-    adata.obs["Domain_mclust_global"] = adata.obs["STAIR"].astype(str)
+    adata.obs["Domain_mclust_global"] = adata.obs["HyperMOA"].astype(str)
     adata.obs["Domain"] = adata.obs["Domain_mclust_global"].astype(str)
     domain_refinement = f"none_pure_global_mclust_g{cluster_num}_{mclust_rep_key}"
     adata.uns["domain_refinement"] = domain_refinement
@@ -291,7 +291,7 @@ def main():
 
     diagnostics = _embedding_diagnostics(
         adata,
-        rep_keys=["latent", "latent_bc", "STAIR", "STAIR_bc", "STAIR_mclust"],
+        rep_keys=["latent", "latent_bc", "HyperMOA", "HyperMOA_bc", "HyperMOA_mclust"],
         batch_key="batch",
         truth_key="final_annot",
         pred_key="Domain",
@@ -299,7 +299,7 @@ def main():
     diagnostics_file = os.path.join(embedding_dir, "embedding_diagnostics.csv")
     diagnostics.to_csv(diagnostics_file, index=False)
 
-    sc.pp.neighbors(adata, use_rep="STAIR_bc")
+    sc.pp.neighbors(adata, use_rep="HyperMOA_bc")
     sc.tl.umap(adata, min_dist=0.2)
 
     adata.write(processed_file)

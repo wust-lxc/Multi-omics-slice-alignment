@@ -179,10 +179,10 @@ def _cross_slice_corr_pairs(adata, coords_3d_key: str, batch_key: str = "batch",
     else:
         pearson_adt = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
 
-    if "STAIR" in adata.obsm:
-        pearson_stair = _pairwise_pearson_for_pairs(adata.obsm["STAIR"], pairs)
+    if "HyperMOA" in adata.obsm:
+        pearson_hypermoa = _pairwise_pearson_for_pairs(adata.obsm["HyperMOA"], pairs)
     else:
-        pearson_stair = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
+        pearson_hypermoa = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
 
     return pd.DataFrame(
         {
@@ -190,7 +190,7 @@ def _cross_slice_corr_pairs(adata, coords_3d_key: str, batch_key: str = "batch",
             "slice_b": [str(batches[int(i)]) for i in pairs[:, 1]] if pairs.size else [],
             "pearson_rna": pearson_rna,
             "pearson_adt": pearson_adt,
-            "pearson_stair": pearson_stair,
+            "pearson_hypermoa": pearson_hypermoa,
         }
     )
 
@@ -209,20 +209,20 @@ def _export_pcc_chamfer_side_by_side(
     b["slice_pair"] = b.apply(lambda r: "|".join(sorted([str(r["slice_a"]), str(r["slice_b"])])), axis=1)
     a["slice_pair"] = a.apply(lambda r: "|".join(sorted([str(r["slice_a"]), str(r["slice_b"])])), axis=1)
 
-    b_mean = b.groupby("slice_pair", as_index=False)[["pearson_rna", "pearson_adt", "pearson_stair"]].mean()
+    b_mean = b.groupby("slice_pair", as_index=False)[["pearson_rna", "pearson_adt", "pearson_hypermoa"]].mean()
     b_mean = b_mean.rename(
         columns={
             "pearson_rna": "RNA PCC before",
             "pearson_adt": "ADT PCC before",
-            "pearson_stair": "Latent PCC before",
+            "pearson_hypermoa": "HyperMOA PCC before",
         }
     )
-    a_mean = a.groupby("slice_pair", as_index=False)[["pearson_rna", "pearson_adt", "pearson_stair"]].mean()
+    a_mean = a.groupby("slice_pair", as_index=False)[["pearson_rna", "pearson_adt", "pearson_hypermoa"]].mean()
     a_mean = a_mean.rename(
         columns={
             "pearson_rna": "RNA PCC after",
             "pearson_adt": "ADT PCC after",
-            "pearson_stair": "Latent PCC after",
+            "pearson_hypermoa": "HyperMOA PCC after",
         }
     )
     pcc = b_mean.merge(a_mean, on="slice_pair", how="inner")
@@ -250,8 +250,8 @@ def _export_pcc_chamfer_side_by_side(
     axs[0].bar(x - 1.5 * w, side["RNA PCC after"], width=w, label="RNA after", color="#3182bd")
     axs[0].bar(x - 0.5 * w, side["ADT PCC before"], width=w, label="ADT before", color="#fdae6b")
     axs[0].bar(x + 0.5 * w, side["ADT PCC after"], width=w, label="ADT after", color="#e6550d")
-    axs[0].bar(x + 1.5 * w, side["Latent PCC before"], width=w, label="Latent before", color="#a1d99b")
-    axs[0].bar(x + 2.5 * w, side["Latent PCC after"], width=w, label="Latent after", color="#31a354")
+    axs[0].bar(x + 1.5 * w, side["HyperMOA PCC before"], width=w, label="HyperMOA before", color="#a1d99b")
+    axs[0].bar(x + 2.5 * w, side["HyperMOA PCC after"], width=w, label="HyperMOA after", color="#31a354")
     axs[0].set_xticks(x)
     axs[0].set_xticklabels(side["slice_pair"].tolist(), rotation=20, ha="right")
     axs[0].set_ylabel("Mean PCC")
@@ -446,7 +446,7 @@ def _plot_spatial_comparison(adata, result_dir: str, batch_key: str = "batch", t
             color=pred_key,
             ax=axes[i, 1],
             show=False,
-            title=f"Slice: {slice_id} | STAIR Domain",
+            title=f"Slice: {slice_id} | HyperMOA Domain",
             frameon=False,
             size=spot_size,
             legend_fontsize=10,
@@ -472,6 +472,12 @@ def main():
         raise FileNotFoundError("human_lymph_node_processed.h5ad not found. Run previous scripts first.")
 
     adata = sc.read_h5ad(processed_file)
+    adata.uns.setdefault("cluster_method", "mclust")
+    adata.uns.setdefault("domain_refinement", "none_pure_global_mclust_g10_HyperMOA_mclust")
+    adata.uns.setdefault("mclust_rep_key", "HyperMOA_mclust")
+    adata.uns.setdefault("mclust_source_key", "HyperMOA")
+    adata.uns.setdefault("mclust_pca_components", 2)
+    adata.uns.setdefault("mclust_model_name", "EEV")
 
     if "transform_fine" not in adata.obsm:
         raise KeyError("transform_fine not found. Run 04_location_alignment.py first.")
@@ -565,12 +571,12 @@ def main():
         pearson_adt = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
         n_adt = 0
 
-    if "STAIR" in adata.obsm:
-        pearson_stair = _pairwise_pearson_for_pairs(adata.obsm["STAIR"], pairs)
-        n_stair = int(np.asarray(adata.obsm["STAIR"]).shape[1])
+    if "HyperMOA" in adata.obsm:
+        pearson_hypermoa = _pairwise_pearson_for_pairs(adata.obsm["HyperMOA"], pairs)
+        n_hypermoa = int(np.asarray(adata.obsm["HyperMOA"]).shape[1])
     else:
-        pearson_stair = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
-        n_stair = 0
+        pearson_hypermoa = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
+        n_hypermoa = 0
 
     rows = []
 
@@ -714,11 +720,11 @@ def main():
     rows.append(
         {
             "metric_group": "correlation",
-            "metric_name": "pearson_stair_mean",
+            "metric_name": "pearson_hypermoa_mean",
             "slice": "ALL",
             "slice_pair": "ALL",
-            "value": float(np.nanmean(pearson_stair)) if pearson_stair.size else np.nan,
-            "extra": f"n_stair={n_stair}",
+            "value": float(np.nanmean(pearson_hypermoa)) if pearson_hypermoa.size else np.nan,
+            "extra": f"n_hypermoa={n_hypermoa}",
         }
     )
 

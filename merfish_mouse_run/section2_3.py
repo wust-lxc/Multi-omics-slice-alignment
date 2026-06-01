@@ -13,9 +13,9 @@ import scanpy as sc
 from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import r2_score
 
-# 导入 STAIR 工具
-from STAIR.data_paths import resolve_data_root
-from STAIR.loc_prediction import sort_slices
+# 导入 HyperMOA 工具
+from hypermoa.data_paths import resolve_data_root
+from hypermoa.loc_prediction import sort_slices
 
 # ==============================================================================
 # 0. 环境与数据加载
@@ -36,7 +36,7 @@ if os.path.exists(processed_file_path):
     adata = sc.read(processed_file_path)
 else:
     print(f"Warning: Processed file not found. Falling back to original {original_file_path}...")
-    print("Note: If you haven't run section2_2.py, 'STAIR' embeddings will be missing.")
+    print("Note: If you haven't run section2_2.py, 'HyperMOA' embeddings will be missing.")
     adata = sc.read(original_file_path)
 
 # 2. 加载 Attention 矩阵
@@ -114,7 +114,7 @@ print(f"Saved correlation plot to {save_path_spearman}")
 # ==============================================================================
 print("Reconstructing Z-coordinates...")
 
-# 使用 STAIR 提供的工具根据 Attention 排序切片
+# 使用 HyperMOA 工具根据 Attention 排序切片
 dists_pred = sort_slices(atte, start='A11')
 
 # 映射得到初始相对位置

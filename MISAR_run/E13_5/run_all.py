@@ -1,7 +1,98 @@
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
 from pathlib import Path
 
-from pipeline import run_all
+
+def _python_has_scanpy(python_exe: str) -> bool:
+    try:
+        subprocess.run(
+            [python_exe, "-c", "import scanpy"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _candidate_pythons():
+    configured_python = os.environ.get("HYPERMOA_PYTHON")
+    if configured_python:
+        yield Path(configured_python)
+
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+    if conda_prefix:
+        yield Path(conda_prefix) / "bin" / "python"
+
+    current_python = Path(sys.executable).resolve()
+    try:
+        conda_root = current_python.parents[1]
+        envs_dir = conda_root / "envs"
+        if envs_dir.exists():
+            yield from sorted(envs_dir.glob("*/bin/python"))
+    except IndexError:
+        pass
+
+    default_python = Path("/root/miniconda3/bin/python")
+    if default_python.exists():
+        yield default_python
+
+    default_envs_dir = Path("/root/miniconda3/envs")
+    if default_envs_dir.exists():
+        yield from sorted(default_envs_dir.glob("*/bin/python"))
+
+
+def resolve_python() -> str:
+    if _python_has_scanpy(sys.executable):
+        return sys.executable
+
+    seen = set()
+    for python_path in _candidate_pythons():
+        python_path = python_path.expanduser().resolve()
+        if python_path in seen or not python_path.exists():
+            continue
+        seen.add(python_path)
+        if _python_has_scanpy(str(python_path)):
+            print(f"[INFO] Current Python lacks scanpy; using {python_path}")
+            return str(python_path)
+
+    return sys.executable
+
+
+def configure_runtime_threads(python_exe: str, repo_root: Path) -> None:
+    for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        os.environ[key] = "1"
+
+    env_prefix = str(Path(python_exe).resolve().parent.parent)
+    os.environ["CONDA_PREFIX"] = env_prefix
+    os.environ["PATH"] = str(Path(env_prefix) / "bin") + os.pathsep + os.environ.get("PATH", "")
+    os.environ["LD_LIBRARY_PATH"] = str(Path(env_prefix) / "lib") + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+    if (Path(env_prefix) / "lib" / "R").exists():
+        os.environ["R_HOME"] = str(Path(env_prefix) / "lib" / "R")
+
+    current_pythonpath = os.environ.get("PYTHONPATH", "")
+    pythonpath_parts = [str(repo_root)]
+    if current_pythonpath:
+        pythonpath_parts.append(current_pythonpath)
+    os.environ["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
+
+def main() -> int:
+    run_dir = Path(__file__).resolve().parent
+    repo_root = run_dir.parents[1]
+    python_exe = resolve_python()
+    configure_runtime_threads(python_exe, repo_root)
+
+    if Path(python_exe).resolve() != Path(sys.executable).resolve():
+        return subprocess.run([python_exe, str(Path(__file__).resolve())], check=False).returncode
+
+    from pipeline import run_all
+
+    return run_all(run_dir)
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_all(Path(__file__).resolve().parent))
+    raise SystemExit(main())

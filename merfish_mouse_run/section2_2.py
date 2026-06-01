@@ -9,9 +9,9 @@ from matplotlib.pyplot import rc_context
 import scanpy as sc
 import pandas as pd
 import numpy as np
-from STAIR.data_paths import resolve_data_root
-from STAIR.emb_alignment import Emb_Align
-from STAIR.utils import *
+from hypermoa.data_paths import resolve_data_root
+from hypermoa.emb_alignment import Emb_Align
+from hypermoa.utils import *
 set_seed(42)
 
 # ========================================S======================================
@@ -75,20 +75,20 @@ print(f"Attention weights saved to: {atte_csv_path}")
 # ==============================================================================
 print("Clustering...")
 # 使用 mclust (需 R 环境支持)
-adata = cluster_func(adata, clustering='mclust', use_rep='STAIR', cluster_num=13, key_add='STAIR')
+adata = cluster_func(adata, clustering='mclust', use_rep='HyperMOA', cluster_num=13, key_add='HyperMOA')
 print("Mclust clustering completed.")
 
 # ==============================================================================
 # 4. 可视化 (Visualization) - UMAP
 # ==============================================================================
 print("Generating UMAP...")
-sc.pp.neighbors(adata, use_rep='STAIR')
+sc.pp.neighbors(adata, use_rep='HyperMOA')
 sc.tl.umap(adata, min_dist=0.2)
 
 # Plot 1: Batch & Cluster UMAP
 save_path_umap = os.path.join(result_path, 'umap_batch_cluster.png')
 with rc_context({'figure.figsize': (4,4)}):
-    sc.pl.umap(adata, color=['batch', 'STAIR'], frameon=False, ncols=3, show=False)
+    sc.pl.umap(adata, color=['batch', 'HyperMOA'], frameon=False, ncols=3, show=False)
     plt.savefig(save_path_umap, dpi=300, bbox_inches='tight')
     plt.close()
 print(f"Saved UMAP to {save_path_umap}")
@@ -103,10 +103,10 @@ mapping = {
 }
 
 # 仅替换存在的类别，防止报错
-current_cats = adata.obs['STAIR'].astype(str).unique()
+current_cats = adata.obs['HyperMOA'].astype(str).unique()
 safe_mapping = {k: v for k, v in mapping.items() if k in current_cats}
 
-adata.obs['Domain'] = adata.obs['STAIR'].astype(str).replace(safe_mapping)
+adata.obs['Domain'] = adata.obs['HyperMOA'].astype(str).replace(safe_mapping)
 
 # 设置类别顺序
 target_categories = ['stHY', 'MnPO', 'Hypo', 'Pe', 'MPA', 'opn', 'MPN', 'BNST', 'ACA_Fx', 'VLPO', '3V', 'BAC', 'PVN']

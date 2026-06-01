@@ -12,8 +12,8 @@ import scanpy as sc
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
-from STAIR.multi_emb_alignment import Multi_Emb_Align
-from STAIR.utils import cluster_func, set_seed
+from hypermoa.multi_emb_alignment import Multi_Emb_Align
+from hypermoa.utils import cluster_func, set_seed
 
 
 def _add_scaled_pca_rep(adata, source_key: str, target_key: str, n_components: int, random_state: int = 2022):
@@ -48,8 +48,8 @@ def main():
     n_neigh_het = 30
     mini_batch = False
     cluster_num = 18
-    mclust_source_key = "STAIR_bc"
-    mclust_rep_key = "STAIR_mclust"
+    mclust_source_key = "HyperMOA_bc"
+    mclust_rep_key = "HyperMOA_mclust"
     mclust_pca_components = 10
     mclust_model_name = "EEV"
 
@@ -125,7 +125,7 @@ def main():
     attention_file = embedding_dir / "attention.csv"
     attention.to_csv(attention_file)
 
-    emb_align.batch_center_obsm(source_key="STAIR", target_key="STAIR_bc", batch_key="batch")
+    emb_align.batch_center_obsm(source_key="HyperMOA", target_key="HyperMOA_bc", batch_key="batch")
     adata = emb_align.adata
     adata = _add_scaled_pca_rep(
         adata,
@@ -140,9 +140,9 @@ def main():
         use_rep=mclust_rep_key,
         cluster_num=cluster_num,
         modelNames=mclust_model_name,
-        key_add="STAIR",
+        key_add="HyperMOA",
     )
-    adata.obs["Domain_mclust_global"] = adata.obs["STAIR"].astype(str)
+    adata.obs["Domain_mclust_global"] = adata.obs["HyperMOA"].astype(str)
     adata.obs["Domain"] = adata.obs["Domain_mclust_global"].astype(str)
     adata.uns["cluster_method"] = "mclust"
     adata.uns["mclust_rep_key"] = mclust_rep_key

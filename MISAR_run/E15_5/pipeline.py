@@ -19,10 +19,10 @@ from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-from STAIR.data_paths import resolve_data_root
-from STAIR.loc_alignment import Loc_Align
-from STAIR.multi_emb_alignment import Multi_Emb_Align
-from STAIR.utils import cluster_func, set_seed
+from hypermoa.data_paths import resolve_data_root
+from hypermoa.loc_alignment import Loc_Align
+from hypermoa.multi_emb_alignment import Multi_Emb_Align
+from hypermoa.utils import cluster_func, set_seed
 
 
 TIMEPOINT = "E15_5"
@@ -48,8 +48,8 @@ N_NEIGH_HET = 30
 # Global mclust G for the merged two-slice embedding.
 # Use the larger per-slice Combined_Clusters count to keep shared domains across slices.
 CLUSTER_NUM = 15
-MCLUST_SOURCE_KEY = "STAIR_bc"
-MCLUST_REP_KEY = "STAIR_mclust"
+MCLUST_SOURCE_KEY = "HyperMOA_bc"
+MCLUST_REP_KEY = "HyperMOA_mclust"
 MCLUST_PCA_COMPONENTS = 10
 MCLUST_MODEL_NAME = "EEV"
 SPATIAL_2D_DOT_SIZE = 140
@@ -429,7 +429,7 @@ def embedding_alignment() -> None:
 
     adata, attention = emb_align.predict_hgat(mini_batch=False, batches=6)
     attention.to_csv(embedding_dir / "attention.csv")
-    emb_align.batch_center_obsm(source_key="STAIR", target_key="STAIR_bc", batch_key="batch")
+    emb_align.batch_center_obsm(source_key="HyperMOA", target_key="HyperMOA_bc", batch_key="batch")
     adata = emb_align.adata
     adata = _add_scaled_pca_rep(
         adata,
@@ -444,9 +444,9 @@ def embedding_alignment() -> None:
         use_rep=MCLUST_REP_KEY,
         cluster_num=cluster_num,
         modelNames=MCLUST_MODEL_NAME,
-        key_add="STAIR",
+        key_add="HyperMOA",
     )
-    adata.obs["Domain_mclust_global"] = adata.obs["STAIR"].astype(str)
+    adata.obs["Domain_mclust_global"] = adata.obs["HyperMOA"].astype(str)
     adata.obs["Domain"] = adata.obs["Domain_mclust_global"].astype(str)
     adata.obs["cluster_method"] = "mclust"
     adata.uns["cluster_method"] = "mclust"
@@ -490,9 +490,14 @@ def location_alignment() -> None:
         raise FileNotFoundError(f"{processed_file()} not found. Run 03_slice_order_and_z_reconstruction.py first.")
 
     adata = sc.read_h5ad(processed_file())
-    emb_key = "STAIR_bc" if "STAIR_bc" in adata.obsm else "STAIR"
+    if "HyperMOA_bc" in adata.obsm:
+        emb_key = "HyperMOA_bc"
+    elif "HyperMOA" in adata.obsm:
+        emb_key = "HyperMOA"
+    else:
+        emb_key = "HyperMOA"
     if emb_key not in adata.obsm:
-        raise KeyError("STAIR embedding not found. Run 02_embedding_alignment.py first.")
+        raise KeyError("HyperMOA embedding not found. Run 02_embedding_alignment.py first.")
     if "Domain" not in adata.obs:
         adata.obs["Domain"] = adata.obs["batch"].astype(str)
 
@@ -692,7 +697,7 @@ def _plot_spatial_comparison(adata, out_dir: Path, truth_key: str = "truth", pre
             color=pred_key,
             ax=axes[i, 1],
             show=False,
-            title=f"Slice: {slice_id} | STAIR Domain",
+            title=f"Slice: {slice_id} | HyperMOA Domain",
             frameon=False,
             size=SPATIAL_2D_DOT_SIZE,
             legend_fontsize=10,

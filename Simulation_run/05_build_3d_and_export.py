@@ -186,10 +186,10 @@ def _cross_slice_expression_corr_table(
     else:
         pearson_adt = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
 
-    if "STAIR" in adata.obsm:
-        pearson_stair = _pairwise_pearson_for_pairs(adata.obsm["STAIR"], pairs)
+    if "HyperMOA" in adata.obsm:
+        pearson_hypermoa = _pairwise_pearson_for_pairs(adata.obsm["HyperMOA"], pairs)
     else:
-        pearson_stair = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
+        pearson_hypermoa = np.full((pairs.shape[0],), np.nan, dtype=np.float64)
 
     pair_df = pd.DataFrame(
         {
@@ -205,7 +205,7 @@ def _cross_slice_expression_corr_table(
             "pearson_hvg": pearson_rna,
             "spearman_hvg": spearman_rna,
             "pearson_adt": pearson_adt,
-            "pearson_stair": pearson_stair,
+            "pearson_hypermoa": pearson_hypermoa,
             "n_hvg": [n_hvg] * pairs.shape[0],
         }
     )
@@ -221,7 +221,7 @@ def _cross_slice_expression_corr_table(
             "spearman_mean": float(pair_df["spearman_hvg"].mean()) if not pair_df.empty else np.nan,
             "spearman_median": float(pair_df["spearman_hvg"].median()) if not pair_df.empty else np.nan,
             "pearson_adt_mean": float(pair_df["pearson_adt"].mean()) if not pair_df.empty else np.nan,
-            "pearson_stair_mean": float(pair_df["pearson_stair"].mean()) if not pair_df.empty else np.nan,
+            "pearson_hypermoa_mean": float(pair_df["pearson_hypermoa"].mean()) if not pair_df.empty else np.nan,
             "distance_3d_mean": float(pair_df["distance_3d"].mean()) if not pair_df.empty else np.nan,
         }
     ]
@@ -244,7 +244,7 @@ def _cross_slice_expression_corr_table(
                     "spearman_mean": float(g["spearman_hvg"].mean()),
                     "spearman_median": float(g["spearman_hvg"].median()),
                     "pearson_adt_mean": float(g["pearson_adt"].mean()),
-                    "pearson_stair_mean": float(g["pearson_stair"].mean()),
+                    "pearson_hypermoa_mean": float(g["pearson_hypermoa"].mean()),
                     "distance_3d_mean": float(g["distance_3d"].mean()),
                 }
             )
@@ -464,10 +464,10 @@ def _write_metrics_summary(adata, result_dir: Path, chamfer_adjacent: pd.DataFra
         rows.append(
             {
                 "metric_group": "cross_slice_corr",
-                "metric_name": "pearson_stair_mean",
+                "metric_name": "pearson_hypermoa_mean",
                 "slice": "",
                 "slice_pair": str(row["slice_pair"]),
-                "value": float(row["pearson_stair_mean"]),
+                "value": float(row["pearson_hypermoa_mean"]),
                 "extra": f"level={row['level']};n_pairs={int(row['n_pairs'])}",
             }
         )

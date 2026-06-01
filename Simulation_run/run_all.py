@@ -18,14 +18,46 @@ def _python_has_scanpy(python_exe: str) -> bool:
         return False
 
 
+def _candidate_pythons():
+    configured_python = os.environ.get("HYPERMOA_PYTHON")
+    if configured_python:
+        yield Path(configured_python)
+
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+    if conda_prefix:
+        yield Path(conda_prefix) / "bin" / "python"
+
+    current_python = Path(sys.executable).resolve()
+    try:
+        conda_root = current_python.parents[1]
+        envs_dir = conda_root / "envs"
+        if envs_dir.exists():
+            yield from sorted(envs_dir.glob("*/bin/python"))
+    except IndexError:
+        pass
+
+    default_python = Path("/root/miniconda3/bin/python")
+    if default_python.exists():
+        yield default_python
+
+    default_envs_dir = Path("/root/miniconda3/envs")
+    if default_envs_dir.exists():
+        yield from sorted(default_envs_dir.glob("*/bin/python"))
+
+
 def resolve_python() -> str:
     if _python_has_scanpy(sys.executable):
         return sys.executable
 
-    stair_env_python = Path("/root/miniconda3/envs/STAIR-env/bin/python")
-    if stair_env_python.exists() and _python_has_scanpy(str(stair_env_python)):
-        print(f"[INFO] Current Python lacks scanpy; using {stair_env_python}")
-        return str(stair_env_python)
+    seen = set()
+    for python_path in _candidate_pythons():
+        python_path = python_path.expanduser().resolve()
+        if python_path in seen or not python_path.exists():
+            continue
+        seen.add(python_path)
+        if _python_has_scanpy(str(python_path)):
+            print(f"[INFO] Current Python lacks scanpy; using {python_path}")
+            return str(python_path)
 
     return sys.executable
 
@@ -46,16 +78,12 @@ def configure_runtime_threads(python_exe: str) -> None:
         if os.environ.get(key) != target_value:
             os.environ[key] = target_value
 
-    if Path("/usr/bin/Rscript").exists():
-        os.environ["R_HOME"] = "/usr/lib/R"
-        os.environ["PATH"] = "/usr/bin" + os.pathsep + os.environ.get("PATH", "")
-        return
-
     env_prefix = str(Path(python_exe).resolve().parent.parent)
     os.environ["CONDA_PREFIX"] = env_prefix
-    os.environ["R_HOME"] = str(Path(env_prefix) / "lib" / "R")
     os.environ["PATH"] = str(Path(env_prefix) / "bin") + os.pathsep + os.environ.get("PATH", "")
     os.environ["LD_LIBRARY_PATH"] = str(Path(env_prefix) / "lib") + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+    if (Path(env_prefix) / "lib" / "R").exists():
+        os.environ["R_HOME"] = str(Path(env_prefix) / "lib" / "R")
 
 
 def main() -> int:
@@ -63,6 +91,12 @@ def main() -> int:
     configure_runtime_threads(python_exe)
 
     repo_root = Path(__file__).resolve().parent.parent
+    current_pythonpath = os.environ.get("PYTHONPATH", "")
+    pythonpath_parts = [str(repo_root)]
+    if current_pythonpath:
+        pythonpath_parts.append(current_pythonpath)
+    os.environ["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
     run_dir = repo_root / "Simulation_run"
 
     steps = [

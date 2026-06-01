@@ -6,7 +6,7 @@ def resolve_data_root(repo_root=None) -> Path:
     """Return the shared data directory for run scripts.
 
     Priority:
-    1. STAIR_DATA_DIR environment variable.
+    1. HYPERMOA_DATA_DIR environment variable.
     2. data/ next to the repository parent, e.g. ../data.
     3. legacy data/ inside the repository.
     """
@@ -15,11 +15,11 @@ def resolve_data_root(repo_root=None) -> Path:
     else:
         repo_root = Path(repo_root).resolve()
 
-    env_data_dir = os.environ.get("STAIR_DATA_DIR")
+    env_data_dir = os.environ.get("HYPERMOA_DATA_DIR")
     if env_data_dir:
         data_root = Path(env_data_dir).expanduser().resolve()
         if not data_root.exists():
-            raise FileNotFoundError(f"STAIR_DATA_DIR does not exist: {data_root}")
+            raise FileNotFoundError(f"Configured data directory does not exist: {data_root}")
         return data_root
 
     candidates = [

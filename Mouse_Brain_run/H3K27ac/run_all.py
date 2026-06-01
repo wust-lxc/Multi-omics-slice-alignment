@@ -95,13 +95,17 @@ def main() -> int:
         run_dir / "02_embedding_and_clustering.py",
         run_dir / "03_export_results.py",
     ]
+    for step in steps:
+        if not step.exists():
+            raise FileNotFoundError(f"Missing pipeline step: {step}")
+
     try:
         for step in steps:
             run_step(step, python_exe)
     except subprocess.CalledProcessError as exc:
         print(f"[ERROR] Pipeline failed at: {exc.cmd}")
         return exc.returncode
-    print("Mouse Brain ATAC single-slice pipeline finished.")
+    print("Mouse Brain H3K27ac single-slice pipeline finished.")
     return 0
 
 
